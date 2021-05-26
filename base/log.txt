@@ -1,0 +1,223 @@
+Successfully loaded pretrained weights from "/home/kevinwm99/MOT/mot_neural_solver/output/trained_models/reid/resnet50_market_cuhk_duke.tar-232"
+** The following layers are discarded due to unmatched keys or layer size: ['classifier.weight', 'classifier.bias']
+{'seq': 'MOT17-02-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 600, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-02-DPM
+Finished processing detections for seq MOT17-02-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-DPM/processed_data/det/frcnn_prepr_det.pkl
+Found existing stored node embeddings. Deleting them and replacing them for new ones
+Found existing stored reid embeddings. Deleting them and replacing them for new ones
+Computing embeddings for 4680 detections
+1 600
+IT TOOK  42.83024549484253
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-02-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 600, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-02-FRCNN
+Finished processing detections for seq MOT17-02-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Found existing stored node embeddings. Deleting them and replacing them for new ones
+Found existing stored reid embeddings. Deleting them and replacing them for new ones
+Computing embeddings for 6468 detections
+1 600
+IT TOOK  31.902271270751953
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-02-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 600, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-02-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-GT/processed_data/det/gt.pkl
+Computing embeddings for 20130 detections
+1 600
+IT TOOK  20.19178533554077
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-02-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 600, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-02-SDP
+Finished processing detections for seq MOT17-02-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-02-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 8054 detections
+1 600
+IT TOOK  26.06347942352295
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-04-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 1050, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-04-DPM
+Finished processing detections for seq MOT17-04-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 22816 detections
+1 1050
+IT TOOK  28.88772988319397
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-04-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 1050, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-04-FRCNN
+Finished processing detections for seq MOT17-04-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 26276 detections
+1 1050
+IT TOOK  33.45501255989075
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-04-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 1050, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-04-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-GT/processed_data/det/gt.pkl
+Computing embeddings for 47557 detections
+1 1050
+IT TOOK  41.3364634513855
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-04-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 1050, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-04-SDP
+Finished processing detections for seq MOT17-04-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-04-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 34593 detections
+1 1050
+IT TOOK  33.36561298370361
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-05-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 480, 'frame_width': 640, 'seq_len': 837, 'fps': 14, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-05-DPM
+Finished processing detections for seq MOT17-05-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 2884 detections
+1 837
+IT TOOK  13.412858724594116
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-05-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 480, 'frame_width': 640, 'seq_len': 837, 'fps': 14, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-05-FRCNN
+Finished processing detections for seq MOT17-05-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 3714 detections
+1 837
+IT TOOK  20.148932456970215
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-05-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-GT', 'det_file_name': 'gt', 'frame_height': 480, 'frame_width': 640, 'seq_len': 837, 'fps': 14, 'mov_camera': True, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-05-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-GT/processed_data/det/gt.pkl
+Computing embeddings for 7232 detections
+1 837
+IT TOOK  24.96729016304016
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-05-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 480, 'frame_width': 640, 'seq_len': 837, 'fps': 14, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-05-SDP
+Finished processing detections for seq MOT17-05-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-05-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 4240 detections
+1 837
+IT TOOK  22.99071717262268
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-09-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 525, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-09-DPM
+Finished processing detections for seq MOT17-09-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 3195 detections
+1 525
+IT TOOK  33.681682109832764
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-09-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 525, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-09-FRCNN
+Finished processing detections for seq MOT17-09-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 3032 detections
+1 525
+IT TOOK  36.39086127281189
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-09-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 525, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-09-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-GT/processed_data/det/gt.pkl
+Computing embeddings for 5325 detections
+1 525
+IT TOOK  45.86077094078064
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-09-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 525, 'fps': 30, 'mov_camera': False, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-09-SDP
+Finished processing detections for seq MOT17-09-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-09-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 3411 detections
+1 525
+IT TOOK  39.138381242752075
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-10-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 654, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-10-DPM
+Finished processing detections for seq MOT17-10-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 5619 detections
+1 654
+IT TOOK  35.836772441864014
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-10-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 654, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-10-FRCNN
+Finished processing detections for seq MOT17-10-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 7904 detections
+1 654
+IT TOOK  28.556493520736694
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-10-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 654, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-10-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-GT/processed_data/det/gt.pkl
+Computing embeddings for 12836 detections
+1 654
+IT TOOK  21.609888553619385
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-10-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 654, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-10-SDP
+Finished processing detections for seq MOT17-10-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-10-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 9699 detections
+1 654
+IT TOOK  24.012814044952393
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-11-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 900, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-11-DPM
+Finished processing detections for seq MOT17-11-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 5301 detections
+1 900
+IT TOOK  75.50540256500244
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-11-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 900, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-11-FRCNN
+Finished processing detections for seq MOT17-11-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 5779 detections
+1 900
+IT TOOK  72.80830979347229
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-11-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 900, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-11-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-GT/processed_data/det/gt.pkl
+Computing embeddings for 9436 detections
+1 900
+IT TOOK  53.915401220321655
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-11-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 900, 'fps': 30, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-11-SDP
+Finished processing detections for seq MOT17-11-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-11-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 6825 detections
+1 900
+IT TOOK  59.55252027511597
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-13-DPM', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-DPM', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 750, 'fps': 25, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-13-DPM
+Finished processing detections for seq MOT17-13-DPM. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-DPM/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 3153 detections
+1 750
+IT TOOK  28.948482751846313
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-13-FRCNN', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-FRCNN', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 750, 'fps': 25, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-13-FRCNN
+Finished processing detections for seq MOT17-13-FRCNN. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-FRCNN/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 6904 detections
+1 750
+IT TOOK  21.27322483062744
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-13-GT', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-GT', 'det_file_name': 'gt', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 750, 'fps': 25, 'mov_camera': True, 'has_gt': True, 'is_gt': True}
+Finished processing detections for seq MOT17-13-GT. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-GT/processed_data/det/gt.pkl
+Computing embeddings for 11642 detections
+1 750
+IT TOOK  18.058530807495117
+Finished computing embeddings
+Finished computing and storing embeddings
+{'seq': 'MOT17-13-SDP', 'seq_path': '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-SDP', 'det_file_name': 'frcnn_prepr_det', 'frame_height': 1080, 'frame_width': 1920, 'seq_len': 750, 'fps': 25, 'mov_camera': True, 'has_gt': True, 'is_gt': False}
+Assigning ground truth identities to detections to sequence MOT17-13-SDP
+Finished processing detections for seq MOT17-13-SDP. Result was stored at /home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train/MOT17-13-SDP/processed_data/det/frcnn_prepr_det.pkl
+Computing embeddings for 6625 detections
+1 750
+IT TOOK  25.72022557258606
+Finished computing embeddings
+Finished computing and storing embeddings
