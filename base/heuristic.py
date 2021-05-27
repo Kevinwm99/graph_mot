@@ -60,6 +60,9 @@ if __name__ == '__main__':
         mot_graph_future = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
                              start_frame=15,
                              end_frame=15)
+        mot_graph_gt = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
+                             start_frame=1,
+                             end_frame=15)
         # print(mot_graph.graph_df['frame'].unique())
 
         node, _ = mot_graph_past._load_appearance_data() # node feature
@@ -71,7 +74,8 @@ if __name__ == '__main__':
         node_fut, _ = mot_graph_future._load_appearance_data()
         print(node_fut.shape)
         print(mot_graph_future.graph_df)
-        print(mot_graph_past.graph_df)
+        
+        # print(mot_graph_past.graph_df)
         # for i in edge_ixs.T:
         #     print(i)
         # print(edge_ixs[:20].T)
