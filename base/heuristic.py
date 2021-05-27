@@ -11,7 +11,7 @@ from non_local_embedded_gaussian import NONLocalBlock2D
 from generator import GCNStack, Generator
 from torch_geometric.utils import from_scipy_sparse_matrix
 from scipy.sparse import coo_matrix
-
+from utils.graph import compute_edge_feats_dict
 device = torch.device("cuda:7")
 
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
@@ -25,6 +25,8 @@ dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'max_frame_dist': max,
                 'min_detects': 25,  # Minimum number of detections allowed so that a graph is sampled
                 'max_detects': None,
+                'edge_feats_to_use': ['secs_time_dists', 'norm_feet_x_dists', 'norm_feet_y_dists',
+                                      'bb_height_dists', 'bb_width_dists', 'emb_dist'],
                 }
 cnn_params = {
     'model_weights_path': '/home/kevinwm99/MOT/mot_neural_solver/output/trained_models/reid/resnet50_market_cuhk_duke.tar-232'
@@ -59,38 +61,67 @@ if __name__ == '__main__':
         df,frames = processor.load_or_process_detections()
         df_len = len(df)
         max_frame_per_graph = 15
-        for i in range(1, len(frames)-max_frame_per_graph+1):
-            print(i)
+        fps = df.seq_info_dict['fps']
+        for i in range(1, len(frames)-max_frame_per_graph+2):
+
+
+            mot_graph_past = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
+                                 start_frame=i,
+                                 end_frame=i+13)
+            mot_graph_future = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
+                                 start_frame=i+14,
+                                 end_frame=i+14)
+            mot_graph_gt = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
+                                 start_frame=i,
+                                 end_frame=i+14)
+
+            node_gt,_ = mot_graph_gt._load_appearance_data()
+            edge_ixs_gt = mot_graph_gt._get_edge_ixs()
+            l1, l2 = (zip(*sorted(zip(edge_ixs_gt[0].numpy(), edge_ixs_gt[1].numpy()))))
+            edge_ixs_gt = (torch.tensor((l1, l2)))
+
+            node_past, _ = mot_graph_past._load_appearance_data() # node feature
+            edge_ixs_past = mot_graph_past._get_edge_ixs()
+            l1, l2 = (zip(*sorted(zip(edge_ixs_past[0].numpy(), edge_ixs_past[1].numpy()))))
+            edge_ixs = (torch.tensor((l1, l2)))
+
+            node_fut, _ = mot_graph_future._load_appearance_data()
+            mot_graph_current_df = pd.concat([mot_graph_past.graph_df, mot_graph_future.graph_df]).reset_index(drop=True).drop(['index'], axis=1)
+
+            edge_ixs_past = to_scipy_sparse_matrix(edge_ixs_past).toarray()
+            edge_current_coo  = F.pad(torch.from_numpy(edge_ixs_past),
+                             (0, node_fut.shape[0], 0, node_fut.shape[0]), mode='constant', value=1) # after padding
+            edge_current = (from_scipy_sparse_matrix(coo_matrix(edge_current_coo.cpu().numpy()))[0]) # to [2, num edges] torch tensor
+            node_current = torch.cat((node_past,node_fut))
+
+            # calculate edge attributes
+            edge_feats_dict = compute_edge_feats_dict(edge_ixs=edge_current, det_df=mot_graph_current_df,
+                                                      fps=fps,
+                                                      use_cuda=True)
+
+            edge_feats = [edge_feats_dict[feat_names] for feat_names in dataset_para['edge_feats_to_use'] if
+                          feat_names in edge_feats_dict]
+            edge_feats = torch.stack(edge_feats).T
+            emb_dists = []
+
+            for i in range(0, edge_current.shape[1], 50000):
+                emb_dists.append(F.pairwise_distance(node_current[edge_current[0][i:i + 50000]],
+                                                     node_current[edge_current[1][i:i + 50000]]).view(-1, 1))
+
+            emb_dists = torch.cat(emb_dists, dim=0)
+
+            # Add embedding distances to edge features if needed
+            if 'emb_dist' in dataset_para['edge_feats_to_use']:
+                edge_feats = torch.cat((edge_feats.to(device), emb_dists.to(device)), dim=1)
+            print("Edge features", edge_feats.shape)
+            edge_attr = torch.cat((edge_feats, edge_feats))
+            print(edge_attr.shape)
+            print(edge_current.shape)
+            print(node_current.shape)
+            # print(mot_graph_current_df)
+            # print(edge_feats_dict.items())
+            break
         break
-        mot_graph_past = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=i+1,
-                             end_frame=i+14)
-        mot_graph_future = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=i+15,
-                             end_frame=i+15)
-        mot_graph_gt = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=i+1,
-                             end_frame=i+15)
-
-        node_gt,_ = mot_graph_gt._load_appearance_data()
-        edge_ixs_gt = mot_graph_gt._get_edge_ixs()
-        l1, l2 = (zip(*sorted(zip(edge_ixs_gt[0].numpy(), edge_ixs_gt[1].numpy()))))
-        edge_ixs_gt = (torch.tensor((l1, l2)))
-
-        node_past, _ = mot_graph_past._load_appearance_data() # node feature
-        edge_ixs_past = mot_graph_past._get_edge_ixs()
-        l1, l2 = (zip(*sorted(zip(edge_ixs_past[0].numpy(), edge_ixs_past[1].numpy()))))
-        edge_ixs = (torch.tensor((l1, l2)))
-
-        node_fut, _ = mot_graph_future._load_appearance_data()
-        mot_graph_current_df = pd.concat([mot_graph_past.graph_df, mot_graph_future.graph_df]).reset_index(drop=True).drop(['index'], axis=1)
-
-        edge_ixs_past = to_scipy_sparse_matrix(edge_ixs_past).toarray()
-        edge_current  = F.pad(torch.from_numpy(edge_ixs_past),
-                         (0, node_fut.shape[0], 0, node_fut.shape[0]), mode='constant', value=1) # after padding
-
-        node_current = torch.cat((node_past,node_fut))
-
         # print(mot_graph_past.graph_df)
         # for i in edge_ixs.T:
         #     print(i)
@@ -118,7 +149,7 @@ if __name__ == '__main__':
         # else:
         #     labels = labels[:500]
 
-        break
+
 
 #################################################################################################################################################
 #################################################################################################################################################
