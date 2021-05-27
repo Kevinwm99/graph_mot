@@ -74,7 +74,8 @@ if __name__ == '__main__':
         node_fut, _ = mot_graph_future._load_appearance_data()
         print(node_fut.shape)
         print(mot_graph_future.graph_df)
-        
+
+
         # print(mot_graph_past.graph_df)
         # for i in edge_ixs.T:
         #     print(i)
