@@ -57,16 +57,20 @@ if __name__ == '__main__':
 
         processor = MOTSeqProcessor(DATA_ROOT, seq_name, dataset_para, device=device)
         df,frames = processor.load_or_process_detections()
-
+        df_len = len(df)
+        max_frame_per_graph = 15
+        for i in range(1, len(frames)-max_frame_per_graph+1):
+            print(i)
+        break
         mot_graph_past = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=1,
-                             end_frame=14)
+                             start_frame=i+1,
+                             end_frame=i+14)
         mot_graph_future = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=15,
-                             end_frame=15)
+                             start_frame=i+15,
+                             end_frame=i+15)
         mot_graph_gt = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
-                             start_frame=1,
-                             end_frame=15)
+                             start_frame=i+1,
+                             end_frame=i+15)
 
         node_gt,_ = mot_graph_gt._load_appearance_data()
         edge_ixs_gt = mot_graph_gt._get_edge_ixs()
@@ -83,7 +87,7 @@ if __name__ == '__main__':
 
         edge_ixs_past = to_scipy_sparse_matrix(edge_ixs_past).toarray()
         edge_current  = F.pad(torch.from_numpy(edge_ixs_past),
-                         (0, node_fut.shape[0], 0, node_fut.shape[0]), mode='constant', value=1) # after padding 
+                         (0, node_fut.shape[0], 0, node_fut.shape[0]), mode='constant', value=1) # after padding
 
         node_current = torch.cat((node_past,node_fut))
 
