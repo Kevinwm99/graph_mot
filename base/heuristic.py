@@ -1,5 +1,5 @@
 import torch
-
+import pandas as pd
 from create_dataloader import MOTGraph
 from pack import MOTSeqProcessor
 import torch.nn as nn
@@ -43,6 +43,10 @@ def weights_init_uniform(m):
         # apply a uniform distribution to the weights and a bias=0
         m.weight.data.uniform_(0.0, 1.0)
         m.bias.data.fill_(0)
+# https://stackoverflow.com/questions/51387361/pad-a-numpy-array-with-random-values-within-a-given-range
+def random_pad(vec, pad_width, *_, **__):
+    vec[:pad_width[0]] = np.random.randint(20, 30, size=pad_width[0])
+    vec[vec.size-pad_width[1]:] = np.random.randint(30,40, size=pad_width[1])
 if __name__ == '__main__':
 
     #################################################################################################################################################
@@ -53,7 +57,7 @@ if __name__ == '__main__':
 
         processor = MOTSeqProcessor(DATA_ROOT, seq_name, dataset_para, device=device)
         df,frames = processor.load_or_process_detections()
-        # print(frames)
+
         mot_graph_past = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
                              start_frame=1,
                              end_frame=14)
@@ -63,18 +67,25 @@ if __name__ == '__main__':
         mot_graph_gt = MOTGraph(seq_det_df=df, seq_info_dict=df.seq_info_dict, dataset_params=dataset_para,
                              start_frame=1,
                              end_frame=15)
-        # print(mot_graph.graph_df['frame'].unique())
 
-        node, _ = mot_graph_past._load_appearance_data() # node feature
-        edge_ixs = mot_graph_past._get_edge_ixs()
-        l1, l2 = (zip(*sorted(zip(edge_ixs[0].numpy(), edge_ixs[1].numpy()))))
+        node_gt,_ = mot_graph_gt._load_appearance_data()
+        edge_ixs_gt = mot_graph_gt._get_edge_ixs()
+        l1, l2 = (zip(*sorted(zip(edge_ixs_gt[0].numpy(), edge_ixs_gt[1].numpy()))))
+        edge_ixs_gt = (torch.tensor((l1, l2)))
+
+        node_past, _ = mot_graph_past._load_appearance_data() # node feature
+        edge_ixs_past = mot_graph_past._get_edge_ixs()
+        l1, l2 = (zip(*sorted(zip(edge_ixs_past[0].numpy(), edge_ixs_past[1].numpy()))))
         edge_ixs = (torch.tensor((l1, l2)))
-        print(node.shape)
-        print(edge_ixs.shape)
-        node_fut, _ = mot_graph_future._load_appearance_data()
-        print(node_fut.shape)
-        print(mot_graph_future.graph_df)
 
+        node_fut, _ = mot_graph_future._load_appearance_data()
+        mot_graph_current_df = pd.concat([mot_graph_past.graph_df, mot_graph_future.graph_df]).reset_index(drop=True).drop(['index'], axis=1)
+
+        edge_ixs_past = to_scipy_sparse_matrix(edge_ixs_past).toarray()
+        edge_current  = F.pad(torch.from_numpy(edge_ixs_past),
+                         (0, node_fut.shape[0], 0, node_fut.shape[0]), mode='constant', value=1) # after padding 
+
+        node_current = torch.cat((node_past,node_fut))
 
         # print(mot_graph_past.graph_df)
         # for i in edge_ixs.T:
