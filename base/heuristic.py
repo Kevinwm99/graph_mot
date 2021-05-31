@@ -181,7 +181,8 @@ if __name__ == '__main__':
 
             # print("Edge features", edge_feats.shape)
             print("Edge features", emb_dists.shape)
-            edge_attr = torch.cat((edge_feats, edge_feats))
+            # edge_attr = torch.cat((edge_feats, edge_feats))
+            edge_attr = torch.cat((emb_dists, emb_dists))
             print(edge_attr.shape)
             print(edge_current.shape)
             print(node_current.shape)
