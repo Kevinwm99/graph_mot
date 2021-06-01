@@ -12,6 +12,7 @@ from generator import GCNStack, Generator
 from torch_geometric.utils import from_scipy_sparse_matrix
 from scipy.sparse import coo_matrix
 from utils.graph import compute_edge_feats_dict
+import numpy as np
 device = torch.device("cuda:7")
 
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
@@ -124,55 +125,90 @@ class EdgeModel(nn.Module):
 
 class GraphNetwork(nn.Module):
     def __init__(self,
-                 in_features,
-                 node_features,
-                 edge_features,
-                 num_layers,
+                 num_layers=5,
                  dropout=0.0):
         super(GraphNetwork, self).__init__()
         # set size
-        self.in_features = in_features
-        self.node_features = node_features
-        self.edge_features = edge_features
+        # self.in_features = in_features
+        # self.node_features = node_features
+        # self.edge_features = edge_features
         self.num_layers = num_layers
         self.dropout = dropout
 
         # for each layer
         for l in range(self.num_layers):
             # set edge to node
-            edge2node_net = NodeUpdateNetwork(in_features=self.in_features if l == 0 else self.node_features,
-                                              num_features=self.node_features,
-                                              dropout=self.dropout if l < self.num_layers - 1 else 0.0)
+            edge2node_net = NodeModel()
 
             # set node to edge
-            node2edge_net = EdgeUpdateNetwork(in_features=self.node_features,
-                                              num_features=self.edge_features,
-                                              separate_dissimilarity=False,
-                                              dropout=self.dropout if l < self.num_layers - 1 else 0.0)
+            node2edge_net = EdgeModel()
 
             self.add_module('edge2node_net{}'.format(l), edge2node_net)
             self.add_module('node2edge_net{}'.format(l), node2edge_net)
 
     # forward
-    def forward(self, node_feat, edge_feat):
+    def forward(self, node_feat, edge_index, edge_feat):
+        row, col = edge_index
+        neighbors_node = {}
+        neighbors_edge = {}
+        for i in range(len(row)):  # for all nodes
+            if int(row[i]) not in neighbors_node:
+                neighbors_node[int(row[i])] = []
+                neighbors_edge[int(row[i])] = []
+            neighbors_edge[int(row[i])].append(edge_feat[int(col[i])])
+            neighbors_node[int(row[i])].append(node_feat[int(col[i])])
+        for i in range(len(node_feat)):
+            neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+            # neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+            neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+        edge_attr_list = []
         # for each layer
-        edge_feat_list = []
         for l in range(self.num_layers):
-            # (1) edge to node
-            node_feat = self._modules['edge2node_net{}'.format(l)](node_feat, edge_feat)
-
-            # (2) node to edge
-            edge_feat = self._modules['node2edge_net{}'.format(l)](node_feat, edge_feat)
-
-            # save edge feature
-            edge_feat_list.append(edge_feat)
+            # node update
+            for i in range(len(node_feat)):
+                # neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+                # neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+                # neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+                # aggregate features
+                agg_feat = torch.mm(neighbors_node[i].T.to(device), neighbors_edge[i].to(device))
+                node_feat[i] = self._modules['edge2node_net{}'.format(l)](agg_feat.to(device).unsqueeze(0).unsqueeze(0))
+            # edge update
+            new_neighbors_node_feat = {}
+            for i in range(len(row)):
+                if int(row[i]) not in new_neighbors_node_feat:
+                    new_neighbors_node_feat[int(row[i])] = []
+                new_neighbors_node_feat[int(row[i])].append(node_feat[int(col[i])])
+            for i in range(len(node_feat)):
+                node_i = node_feat[i].unsqueeze(0).repeat(len(new_neighbors_node_feat[i]), 1)
+                node_j = torch.cat(new_neighbors_node_feat[i], dim=0).view(len(new_neighbors_node_feat[i]), -1)
+                # neighbors_edge_feat = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+                node_ij = torch.abs(node_i - node_j).T
+                edge_update = self._modules['node2edge_net{}'.format(l)](node_ij.unsqueeze(0).unsqueeze(2).to(device))
+                # print(edge_update.shape)
+                neighbors_edge[i] = neighbors_edge[i].to(device)
+                neighbors_edge[i] += edge_update.to(device)
+                # neighbors_edge[i] = F.softmax(neighbors_edge[i], dim=0)
+            edge_attr_list.append(neighbors_edge)
+        # print(edge_ix_pred)
+        # print(F.softmax(torch.cat(tuple([neighbors_edge[i] for i in range(len(node_feat))])), dim=0))
+        # for each layer
+        # edge_feat_list = []
+        # for l in range(self.num_layers):
+        #     # (1) edge to node
+        #     node_feat = self._modules['edge2node_net{}'.format(l)](agg_feat)
+        #
+        #     # (2) node to edge
+        #     edge_feat = self._modules['node2edge_net{}'.format(l)](agg_feat)
+        #
+        #     # save edge feature
+        #     edge_feat_list.append(edge_feat)
 
         # if tt.arg.visualization:
         #     for l in range(self.num_layers):
         #         ax = sns.heatmap(tt.nvar(edge_feat_list[l][0, 0, :, :]), xticklabels=False, yticklabels=False, linewidth=0.1,  cmap="coolwarm",  cbar=False, square=True)
         #         ax.get_figure().savefig('./visualization/edge_feat_layer{}.png'.format(l))
 
-        return edge_feat_list
+        return node_feat, neighbors_edge, edge_attr_list
 
 
 if __name__ == '__main__':
@@ -198,7 +234,7 @@ if __name__ == '__main__':
                                     end_frame=i+14)
 
             node_gt,_ = mot_graph_gt._load_appearance_data()
-            edge_ixs_gt = mot_graph_gt._get_edge_ixs()
+            edge_ixs_gt = mot_graph_gt._get_edge_ix_gt()
             l1, l2 = (zip(*sorted(zip(edge_ixs_gt[0].numpy(), edge_ixs_gt[1].numpy()))))
             edge_ixs_gt = (torch.tensor((l1, l2)))
 
@@ -245,44 +281,58 @@ if __name__ == '__main__':
             row, col = edge_current
             print(edge_attr[row].shape, edge_attr[col].shape)
             print(node_current[row].shape, node_current[col].shape)
-            neighbors_node = {}
-            neighbors_edge = {}
-            node_model = NodeModel()
-            edge_model = EdgeModel()
-            edge_model = edge_model.to(device)
-            node_model = node_model.to(device)
-            for i in range(len(row)): # for all nodes
-                if int(row[i]) not in neighbors_node:
-                    neighbors_node[int(row[i])] = []
-                    neighbors_edge[int(row[i])] = []
-                neighbors_edge[int(row[i])].append(edge_attr[int(col[i])])
-                neighbors_node[int(row[i])].append(node_current[int(col[i])])
-            ############################################################################################
-            # node update
-            for i in range(len(node_current)):
-                neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
-                neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
-                # aggregate features
-                agg_feat = torch.mm(neighbors_node_feat.T.to(device), neighbors_edge[i].to(device))
-                # print(agg_feat.shape)
-                node_current[i] = node_model(agg_feat.to(device).unsqueeze(0).unsqueeze(0))
 
-            # edge update
-            new_neighbors_node_feat = {}
-            for i in range(len(row)):
-                if int(row[i]) not in new_neighbors_node_feat:
-                    new_neighbors_node_feat[int(row[i])] = []
-                new_neighbors_node_feat[int(row[i])].append(node_current[int(col[i])])
-            for i in range(len(node_current)):
-                node_i = node_current[i].unsqueeze(0).repeat(len(new_neighbors_node_feat[i]), 1)
-                node_j = torch.cat(new_neighbors_node_feat[i], dim=0).view(len(new_neighbors_node_feat[i]), -1)
-                # neighbors_edge_feat = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
-                node_ij = torch.abs(node_i-node_j).T
-                edge_update = edge_model(node_ij.unsqueeze(0).unsqueeze(2).to(device))
-                # print(edge_update.shape)
-                neighbors_edge[i] = neighbors_edge[i].to(device)
-                neighbors_edge[i] += edge_update.to(device)
-            print(neighbors_edge[379].shape)
+            criterion = nn.BCELoss()
+            graph = GraphNetwork().to(device)
+            node_feat, neighbor_edge, edge_list = graph(node_current, edge_current, edge_attr)
+            logits = []
+            for i in range(len(node_feat)):
+                logits.append(F.softmax(neighbor_edge[i], dim=0))
+            logits = torch.from_numpy(np.array(logits))
+            print(logits.shape)
+            edge_ix_pred = torch.cat((torch.arange(0, len(node_feat)).unsqueeze(0), prediction.unsqueeze(0)), dim=0)
+            print(edge_ix_pred)
+            print(edge_ixs_gt)
+            print(edge_ix_pred.shape)
+            print(edge_ixs_gt.shape)
+            # neighbors_node = {}
+            # neighbors_edge = {}
+            # node_model = NodeModel()
+            # edge_model = EdgeModel()
+            # edge_model = edge_model.to(device)
+            # node_model = node_model.to(device)
+            # for i in range(len(row)):  # for all nodes
+            #     if int(row[i]) not in neighbors_node:
+            #         neighbors_node[int(row[i])] = []
+            #         neighbors_edge[int(row[i])] = []
+            #     neighbors_edge[int(row[i])].append(edge_attr[int(col[i])])
+            #     neighbors_node[int(row[i])].append(node_current[int(col[i])])
+            # ############################################################################################
+            # # node update
+            # for i in range(len(node_current)):
+            #     neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+            #     # neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+            #     neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+            #     # aggregate features
+            #     agg_feat = torch.mm(neighbors_node[i].T.to(device), neighbors_edge[i].to(device))
+            #     node_current[i] = node_model(agg_feat.to(device).unsqueeze(0).unsqueeze(0))
+            #
+            # # edge update
+            # new_neighbors_node_feat = {}
+            # for i in range(len(row)):
+            #     if int(row[i]) not in new_neighbors_node_feat:
+            #         new_neighbors_node_feat[int(row[i])] = []
+            #     new_neighbors_node_feat[int(row[i])].append(node_current[int(col[i])])
+            # for i in range(len(node_current)):
+            #     node_i = node_current[i].unsqueeze(0).repeat(len(new_neighbors_node_feat[i]), 1)
+            #     node_j = torch.cat(new_neighbors_node_feat[i], dim=0).view(len(new_neighbors_node_feat[i]), -1)
+            #     # neighbors_edge_feat = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+            #     node_ij = torch.abs(node_i-node_j).T
+            #     edge_update = edge_model(node_ij.unsqueeze(0).unsqueeze(2).to(device))
+            #     # print(edge_update.shape)
+            #     neighbors_edge[i] = neighbors_edge[i].to(device)
+            #     neighbors_edge[i] += edge_update.to(device)
+            # print(neighbors_edge[379].shape)
 
             break
         break
