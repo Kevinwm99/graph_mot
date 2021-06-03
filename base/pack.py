@@ -12,7 +12,7 @@ from utils.rgb import BoundingBoxDataset
 from utils.iou import iou
 from lapsolver import solve_dense
 
-device = torch.device("cuda:3")
+device = torch.device("cuda:6")
 
 DATA_PATH = '/home/kevinwm99/MOT/mot_neural_solver/data'
 dataset_para = {'det_file_name': 'frcnn_prepr_det',

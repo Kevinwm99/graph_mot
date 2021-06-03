@@ -18,7 +18,7 @@ from utils.iou import iou
 from utils.graph import get_time_valid_conn_ixs, get_knn_mask, compute_edge_feats_dict
 
 from pack import get_mot_det_df, get_mot_det_df_from_gt,MOTSeqProcessor
-device = torch.device("cuda:3")
+device = torch.device("cuda:6")
 
 #######################################  config ############################$$$$$$$$$$$$$$##############################
 dataset_para={   'det_file_name': 'frcnn_prepr_det',

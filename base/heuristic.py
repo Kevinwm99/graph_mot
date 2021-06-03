@@ -17,7 +17,7 @@ import numpy as np
 # import scipy
 from torch import Tensor
 # import cupyx.scipy.sparse.coo_matrix as coo_matrix_gpu
-device = torch.device("cuda:7")
+device = torch.device("cuda:6")
 
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'node_embeddings_dir': 'resnet50_conv',
@@ -61,30 +61,33 @@ def random_pad(vec, pad_width, *_, **__):
 class NodeModel(nn.Module):
     def __init__(self, dropout=0.0):
         super(NodeModel, self).__init__()
-        self.conv1 = nn.Sequential(nn.Conv2d(in_channels=1,
-                                             out_channels=64,
+        self.conv1 = nn.Sequential(nn.Conv2d(in_channels=256,
+                                             out_channels=256,
                                              kernel_size=1,
-                                             bias=True),
-                                   nn.BatchNorm2d(num_features=64),
-                                   nn.LeakyReLU(inplace=True))
-        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=64,
-                                             out_channels=32,
-                                             kernel_size=(1),
-                                             bias=True),
-                                    nn.BatchNorm2d(num_features=32),
-                                    nn.LeakyReLU(inplace=True))
-        self.conv3 = nn.Sequential(nn.Conv2d(in_channels=32,
-                                             out_channels=1,
-                                             kernel_size=(1),
-                                             bias=True))
+                                             bias=False),
+                                   nn.BatchNorm2d(num_features=256),
+                                   nn.LeakyReLU(inplace=False))
+        self.conv2 = nn.Sequential(nn.Conv2d(in_channels=256,
+                                             out_channels=256,
+                                             kernel_size=1,
+                                             bias=False),
+                                    nn.BatchNorm2d(num_features=256),
+                                    nn.LeakyReLU(inplace=False))
+        # self.conv3 = nn.Sequential(nn.Conv2d(in_channels=32,
+        #                                      out_channels=1,
+        #                                      kernel_size=(1),
+        #                                      bias=False))
 
-    def forward(self, agg_feat):
-        x = self.conv1(agg_feat)
+    def forward(self, node_feat, edge_feat):
+        aggregate = node_feat*edge_feat
+        x = self.conv1(aggregate)
         # print(x.shape)
         x = self.conv2(x)
         # print(x.shape)
-        x = self.conv3(x)
-        x = torch.sigmoid(x.view(1, 256))
+        # x = self.conv3(x)
+        # print(x.shape)
+        # x = torch.sigmoid(x.view(1, 256))
+        x = torch.sigmoid(x)
         return x
 
 
@@ -94,27 +97,28 @@ class EdgeModel(nn.Module):
         self.conv1 = nn.Sequential(nn.Conv2d(in_channels=256,
                                              out_channels=128,
                                              kernel_size=1,
-                                             bias=True),
+                                             bias=False),
                                    nn.BatchNorm2d(num_features=128),
-                                   nn.LeakyReLU(inplace=True))
+                                   nn.LeakyReLU(inplace=False))
         self.conv2 = nn.Sequential(nn.Conv2d(in_channels=128,
                                              out_channels=64,
                                              kernel_size=1,
-                                             bias=True),
+                                             bias=False),
                                    nn.BatchNorm2d(num_features=64),
-                                   nn.LeakyReLU(inplace=True))
+                                   nn.LeakyReLU(inplace=False))
         self.conv3 = nn.Sequential(nn.Conv2d(in_channels=64,
                                              out_channels=32,
                                              kernel_size=1,
-                                             bias=True),
+                                             bias=False),
                                    nn.BatchNorm2d(num_features=32),
-                                   nn.LeakyReLU(inplace=True))
+                                   nn.LeakyReLU(inplace=False))
         self.conv4 = nn.Sequential(nn.Conv2d(in_channels=32,
                                              out_channels=1,
                                              kernel_size=1,
-                                             bias=True))
+                                             bias=False))
 
-    def forward(self, agg_feat):
+    def forward(self, node_feat, edge_feat):
+        agg_feat = node_feat*edge_feat
         x = self.conv1(agg_feat)
         # print(x.shape)
         x = self.conv2(x)
@@ -123,7 +127,9 @@ class EdgeModel(nn.Module):
         # print(x.shape)
         x = self.conv4(x)
         # print(x.shape)
-        x = torch.sigmoid(x.view(-1, 1))
+        # x = torch.sigmoid(x.view(-1, 1))
+        # print(x.shape)
+        x = torch.sigmoid(x)
         return x
 
 
@@ -147,74 +153,75 @@ class GraphNetwork(nn.Module):
             self.add_module('node2edge_net{}'.format(l), node2edge_net)
 
     # forward
-    def forward(self, node_feat, edge_index, edge_feat):
-        row, col = edge_index
-        neighbors_node = {}
-        neighbors_edge = {}
-        neighbors_index = {}
-        for i in range(len(row)):  # for all nodes
-            if int(row[i]) not in neighbors_node:
-                neighbors_node[int(row[i])] = []
-                neighbors_edge[int(row[i])] = []
-                neighbors_index[int(row[i])] = []
-            neighbors_edge[int(row[i])].append(edge_feat[int(col[i])])
-            neighbors_node[int(row[i])].append(node_feat[int(col[i])])
-            neighbors_index[int(row[i])].append(col[i])
-        for i in range(len(node_feat)):
-            neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
-            neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+    def forward(self, node_feat, edge_feat):
+
         edge_attr_list = []
         # for each layer
         for l in range(self.num_layers):
             # node update
-            for i in range(len(node_feat)):
-                # neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
-                # neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
-                # neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
-                # aggregate features
-                agg_feat = torch.mm(neighbors_node[i].T.to(device), neighbors_edge[i].to(device))
-                node_feat[i] = self._modules['edge2node_net{}'.format(l)](agg_feat.to(device).unsqueeze(0).unsqueeze(0))
-            # edge update
-            new_neighbors_node_feat = {}
-            for i in range(len(row)):
-                if int(row[i]) not in new_neighbors_node_feat:
-                    new_neighbors_node_feat[int(row[i])] = []
-                new_neighbors_node_feat[int(row[i])].append(node_feat[int(col[i])])
-            logits =[]
-            for i in range(len(node_feat)):
-                node_i = node_feat[i].unsqueeze(0).repeat(len(new_neighbors_node_feat[i]), 1)
-                node_j = torch.cat(new_neighbors_node_feat[i], dim=0).view(len(new_neighbors_node_feat[i]), -1)
-                # neighbors_edge_feat = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
-                node_ij = torch.abs(node_i - node_j).T
-                edge_update = self._modules['node2edge_net{}'.format(l)](node_ij.unsqueeze(0).unsqueeze(2).to(device))
-                neighbors_edge[i] = neighbors_edge[i].clone().to(device)
-                neighbors_edge[i] += edge_update.to(device)
-                transform = torch.zeros((len(neighbors_edge[i]), len(node_feat)))
-                for ix, v in enumerate(neighbors_index[i]):
-                    transform[ix][v] = torch.tensor(1).clone()
-                transform = torch.tensor(transform, requires_grad=True).to(device)
-                logits_each_class = torch.mm(neighbors_edge[i].T, transform)
-                logits.append(logits_each_class)
-                # neighbors_edge[i] = F.softmax(neighbors_edge[i], dim=0)
-            logits = torch.cat(tuple([logits[i] for i in range(len(node_feat))]))
-            edge_attr_list.append(logits)
+            node_feat = self._modules['edge2node_net{}'.format(l)](node_feat, edge_feat)
+            edge_feat = self._modules['node2edge_net{}'.format(l)](node_feat, edge_feat)
+            edge_attr_list.append(edge_feat.view(1, 1, 500, 500))
+
+            # for i in range(len(node_feat)):
+            #     # neighbors_edge[i] = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+            #     # neighbors_node_feat = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+            #     # neighbors_node[i] = torch.cat(neighbors_node[i], dim=0).view(len(neighbors_node[i]), -1)
+            #     # aggregate features
+            #     agg_feat = torch.mm(neighbors_node[i].T.to(device), neighbors_edge[i].to(device))
+            #     # update node
+            #     node_feat[i] = self._modules['edge2node_net{}'.format(l)](agg_feat.clone()
+            #                                                               .unsqueeze(0).unsqueeze(0).to(device))
+            #     # print(node_feat[i].shape)
+            # # edge update
+            # new_neighbors_node_feat = {}
+            # for i in range(len(row)):
+            #     if int(row[i]) not in new_neighbors_node_feat:
+            #         new_neighbors_node_feat[int(row[i])] = []
+            #     new_neighbors_node_feat[int(row[i])].append(node_feat[int(col[i])])
+            # logits =[]
+            # for i in range(len(node_feat)):
+            #     node_i = node_feat[i].unsqueeze(0).repeat(len(new_neighbors_node_feat[i]), 1)
+            #     node_j = torch.cat(new_neighbors_node_feat[i], dim=0).view(len(new_neighbors_node_feat[i]), -1)
+            #     # neighbors_edge_feat = torch.cat(neighbors_edge[i], dim=0).view(len(neighbors_edge[i]), -1)
+            #     node_ij = torch.abs(node_i - node_j).T
+            #     # print(node_ij.unsqueeze(0).unsqueeze(2).shape)
+            #     edge_update = self._modules['node2edge_net{}'.format(l)](node_ij.unsqueeze(0).unsqueeze(2).to(device))
+            #     # print(edge_update.shape)
+            #     neighbors_edge[i] = neighbors_edge[i].clone().to(device)
+            #     neighbors_edge[i] += edge_update.to(device)
+            #     transform = torch.zeros((len(neighbors_edge[i]), len(node_feat)))
+            #     for ix, v in enumerate(neighbors_index[i]):
+            #         transform[ix][v] = torch.tensor(1).clone()
+            #     transform = torch.tensor(transform, requires_grad=True).to(device)
+            #     logits_each_class = torch.mm(neighbors_edge[i].T, transform)
+            #     logits.append(logits_each_class)
+            #     # neighbors_edge[i] = F.softmax(neighbors_edge[i], dim=0)
+            # logits = torch.cat(tuple([logits[i] for i in range(len(node_feat))]))
+            # edge_attr_list.append(logits)
 
         # if tt.arg.visualization:
         #     for l in range(self.num_layers):
         #         ax = sns.heatmap(tt.nvar(edge_feat_list[l][0, 0, :, :]), xticklabels=False, yticklabels=False, linewidth=0.1,  cmap="coolwarm",  cbar=False, square=True)
         #         ax.get_figure().savefig('./visualization/edge_feat_layer{}.png'.format(l))
 
-        return node_feat, edge_attr_list
+        return edge_attr_list
 
 
 if __name__ == '__main__':
     with torch.autograd.set_detect_anomaly(True):
     #################################################################################################################################################
     #################################################################################################################################################
+        criterion = nn.CrossEntropyLoss(reduction='none')
+        epochs = 10
+        num_layers = 5
+        num_node_per_graph = 500
+        graph = GraphNetwork(num_layers=num_layers).to(device)
+        optimizer = torch.optim.Adam(graph.parameters(), lr=1e-3, weight_decay=0.01)
         for seq_name in mot17_train:
 
             processor = MOTSeqProcessor(DATA_ROOT, seq_name, dataset_para, device=device)
-            df,frames = processor.load_or_process_detections()
+            df, frames = processor.load_or_process_detections()
             df_len = len(df)
             max_frame_per_graph = 15
             fps = df.seq_info_dict['fps']
@@ -275,36 +282,74 @@ if __name__ == '__main__':
                 print("Edge weight shape: {}".format(edge_attr.shape))
                 print("Edge index: {}".format(edge_current.shape))
                 print("Node features: {}".format(node_current.shape))
-                row, col = edge_current
+                # row, col = edge_current
                 # print(edge_attr[row].shape, edge_attr[col].shape)
                 # print(node_current[row].shape, node_current[col].shape)
 
-                criterion = nn.CrossEntropyLoss(reduction='none')
-                epochs = 10
-                num_layers = 5
-                graph = GraphNetwork(num_layers=num_layers).to(device)
-                optimizer = torch.optim.Adam(graph.parameters(), lr=1e-3, weight_decay=0.01)
-                for epoch in range(epochs - 1):
-                    node_feat, edge_list = graph(node_current, edge_current, edge_attr)
-                    optimizer.zero_grad()
-                    id_label = torch.from_numpy(to_scipy_sparse_matrix(edge_ixs_gt).toarray()).argmax(dim=1).long()
 
-                    # make self loop for nodes that have no connection
-                    for i, v in enumerate(id_label):
-                        if id_label[i] == 0:
-                            id_label[i] = i
+                row, col = edge_current
+                node_feat_with_neighbors = torch.zeros((num_node_per_graph, num_node_per_graph))
+                # for node in range(len(row)):
+                #     node_feat_with_neighbors[row[node]][col[node]] = node_current[col[node]]
+                neighbors_node = torch.zeros((num_node_per_graph, num_node_per_graph, 256))
+                neighbors_edge = torch.zeros((num_node_per_graph, num_node_per_graph, 1))
+                neighbors_index = {}
+                for i in range(len(row)):  # for all nodes
+                    neighbors_edge[int(row[i])][int(col[i])] = (edge_attr[int(col[i])])
+                    neighbors_node[int(row[i])][int(col[i])] = (node_current[int(col[i])])
+                    # neighbors_index[int(row[i])].append(col[i])
+                node_feat = neighbors_node.unsqueeze(0).view(1, 256, 500, 500)
+                edge_feat = neighbors_edge.unsqueeze(0).view(1, 1, 500, 500)
+                id_label = torch.from_numpy(to_scipy_sparse_matrix(edge_ixs_gt).toarray()).argmax(dim=1).long()
+                label = torch.zeros(500)
+                # make self loop for nodes that have no connection
+                for i, v in enumerate(id_label):
+                    if id_label[i] == 0:
+                        id_label[i] = i
+                label[0:len(id_label)] = id_label
+                for i, v in enumerate(label):
+                    if label[i] == 0:
+                        label[i] = i
+                for epoch in range(epochs):
+                    predictions = graph(node_feat.to(device), edge_feat.to(device))
+                    # print(predictions[0])
 
-                    loss_each_layer = [criterion(prediction.unsqueeze(0), id_label.unsqueeze(0).to(device))
-                                       for prediction in edge_list]
+                    loss_each_layer = [criterion(prediction.squeeze(0), label.unsqueeze(0).long().to(device)) for prediction in predictions]
+
                     total_loss = []
                     for l in range(num_layers-1):
                         total_loss += [loss_each_layer[l].view(-1) * 0.5]
                     total_loss += [loss_each_layer[-1].view(-1) * 1.0]
 
                     total_loss = torch.mean(torch.cat(total_loss, 0))
-                    print("loss per epoch", total_loss)
+                    print("loss epoch {}".format(epoch), total_loss)
                     total_loss.backward()
                     optimizer.step()
+                # print(label.long())
+                # print(prediction[0].shape)
+                # print(id_label.shape)
+                # print(id_label)
+                # for epoch in range(epochs - 1):
+                #     node_feat, edge_list = graph(node_current, edge_current, edge_attr)
+                #     optimizer.zero_grad()
+                #     id_label = torch.from_numpy(to_scipy_sparse_matrix(edge_ixs_gt).toarray()).argmax(dim=1).long()
+                #
+                #     # make self loop for nodes that have no connection
+                #     for i, v in enumerate(id_label):
+                #         if id_label[i] == 0:
+                #             id_label[i] = i
+                #
+                #     loss_each_layer = [criterion(prediction.unsqueeze(0), id_label.unsqueeze(0).to(device))
+                #                        for prediction in edge_list]
+                #     total_loss = []
+                #     for l in range(num_layers-1):
+                #         total_loss += [loss_each_layer[l].view(-1) * 0.5]
+                #     total_loss += [loss_each_layer[-1].view(-1) * 1.0]
+                #
+                #     total_loss = torch.mean(torch.cat(total_loss, 0))
+                #     print("loss epoch {}".format(epoch), total_loss)
+                #     total_loss.backward(retain_graph=True)
+                #     optimizer.step()
 
             break
 
