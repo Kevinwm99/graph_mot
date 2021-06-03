@@ -488,11 +488,11 @@ class MOTSeqProcessor:
         embeds_ok = embeds_ok or not self.dataset_params['precomputed_embeddings']
         # print(embeds_ok)
         if processed_dets_exist and embeds_ok and not self.dataset_params['overwrite_processed_data']:
-            print(f"Loading processed dets for sequence {self.seq_name} from {seq_det_df_path}")
+            # print(f"Loading processed dets for sequence {self.seq_name} from {seq_det_df_path}")
             seq_det_df = pd.read_pickle(seq_det_df_path).reset_index().sort_values(by=['frame', 'detection_id'])
 
         else:
-            print(f'Detections for sequence {self.seq_name} need to be processed. Starting processing')
+            # print(f'Detections for sequence {self.seq_name} need to be processed. Starting processing')
             seq_det_df = self.process_detections()
 
         seq_det_df.seq_info_dict['seq_path'] = seq_path
