@@ -18,7 +18,7 @@ from utils.iou import iou
 from utils.graph import get_time_valid_conn_ixs, get_knn_mask, compute_edge_feats_dict
 
 from pack import get_mot_det_df, get_mot_det_df_from_gt,MOTSeqProcessor
-device = torch.device("cuda:6")
+# device = torch.device("cuda:6")
 
 #######################################  config ############################$$$$$$$$$$$$$$##############################
 dataset_para={   'det_file_name': 'frcnn_prepr_det',
@@ -171,6 +171,12 @@ class MOTGraph(object):
 
             if ensure_end_is_in and (end_frame not in valid_frames):
                 valid_frames = valid_frames.tolist() + [end_frame]
+            if self.dataset_params['max_detects'] is not None:
+                # print(self.dataset_params['max_detects'])
+                scene_df_ = seq_det_df[seq_det_df.frame.isin(valid_frames)].copy()
+                frames_cumsum = scene_df_.groupby('frame')['bb_left'].count().cumsum()
+                valid_frames = frames_cumsum[frames_cumsum <= self.dataset_params['max_detects']].index
+
 
         else:
             # Consider all posible future frames (at distance step_size)
@@ -183,6 +189,7 @@ class MOTGraph(object):
 
             # We cannot have more than dataset_params['max_detects'] detections
             if self.dataset_params['max_detects'] is not None:
+                print(self.dataset_params['max_detects'])
                 scene_df_ = seq_det_df[seq_det_df.frame.isin(valid_frames)].copy()
                 frames_cumsum = scene_df_.groupby('frame')['bb_left'].count().cumsum()
                 valid_frames = frames_cumsum[frames_cumsum <= self.dataset_params['max_detects']].index
@@ -221,6 +228,7 @@ class MOTGraph(object):
         #
         edge_ixs = torch.cat(edge_ixs).T
         return edge_ixs
+
     def _get_edge_ixs(self):
         frame_num = self.all_frames
         all_ids = torch.from_numpy(np.array(self.ids))
@@ -255,6 +263,7 @@ class MOTGraph(object):
             # print((unquie_connect))
         # return frame_num, all_ids, detection_ids
         return edge_ixs
+
     def _get_edge_ix_gt(self):
         unique_ids = self.graph_df.id.unique()
         detection_id = torch.from_numpy(np.array(self.ids))
@@ -266,6 +275,7 @@ class MOTGraph(object):
                 edge_ixs.append([start_frame_ix,end_frame_ix])
 
         return torch.from_numpy(np.array(edge_ixs).T)
+
     def _load_appearance_data(self):
         """
         Loads embeddings for node features and reid.
