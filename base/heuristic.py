@@ -16,6 +16,7 @@ import numpy as np
 from torch.backends import cudnn
 # import cupyx
 import os
+from torch.utils.tensorboard import SummaryWriter
 # import scipy
 from torch import Tensor
 # import cupyx.scipy.sparse.coo_matrix as coo_matrix_gpu
@@ -24,6 +25,8 @@ from torch import Tensor
 # if torch.cuda.device_count() > 1:
 #       print("We have available ", torch.cuda.device_count(), "GPUs!")
 torch.manual_seed(1234)
+writer = SummaryWriter()
+step = 0
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'node_embeddings_dir': 'resnet50_conv',
                 'reid_embeddings_dir': 'resnet50_w_fc256',
@@ -34,7 +37,7 @@ dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'frames_per_graph': 'max',  # Maximum number of frames contained in each graph sampled graph
                 'max_frame_dist': max,
                 'min_detects': 25,  # Minimum number of detections allowed so that a graph is sampled
-                'max_detects': 400,
+                'max_detects': 450,
                 'edge_feats_to_use': ['secs_time_dists', 'norm_feet_x_dists', 'norm_feet_y_dists',
                                       'bb_height_dists', 'bb_width_dists', 'emb_dist'],
                 }
@@ -44,7 +47,7 @@ cnn_params = {
 DATA_ROOT = '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train'
 DATA_PATH = '/home/kevinwm99/MOT/mot_neural_solver/data'
 mot17_seqs = [f'MOT17-{seq_num:02}-GT' for seq_num in (2, 4, 5, 9, 10, 11, 13)]
-mot17_train = mot17_seqs[1:5]
+mot17_train = mot17_seqs[:5]
 mot17_val = mot17_seqs[5:]
 
 
@@ -179,7 +182,7 @@ class GraphData(torch.utils.data.Dataset):
     def __init__(self, root=DATA_ROOT, all_seq_name=mot17_train, datasetpara=dataset_para, device=None):
         super(GraphData, self).__init__()
         self.num_node_per_graph = 500
-        self.max_frame_per_graph = 10
+        self.max_frame_per_graph = 15
         self.all_seq_name = all_seq_name
         self.dataset_para = datasetpara
         self.device = device
@@ -224,13 +227,7 @@ class GraphData(torch.utils.data.Dataset):
         edge_ixs_gt = mot_graph_gt._get_edge_ix_gt()
         l1, l2 = (zip(*sorted(zip(edge_ixs_gt[0].numpy(), edge_ixs_gt[1].numpy()))))
         edge_ixs_gt = (torch.tensor((l1, l2)))
-        # print(edge_ixs_gt)
-        # print(edge_ixs_gt - len(node_gt))
-        # if (edge_ixs_gt - len(node_gt))[0] < 0:
-        #     edge_ixs_gt = edge_ixs_gt.clone()
-        # else:
-        #     edge_ixs_gt = edge_ixs_gt - len(node_gt)
-        # print(edge_ixs_gt)
+
         node_past, _ = mot_graph_past._load_appearance_data()  # node feature
         edge_ixs_past = mot_graph_past._get_edge_ixs()
         l1, l2 = (zip(*sorted(zip(edge_ixs_past[0].numpy(), edge_ixs_past[1].numpy()))))
@@ -244,25 +241,22 @@ class GraphData(torch.utils.data.Dataset):
             num_past_node = len(past_node_df.graph_df)
             edge_ixs_gt = edge_ixs_gt - num_past_node
             edge_ixs_past = edge_ixs - num_past_node
+
         node_fut, _ = mot_graph_future._load_appearance_data()
         # mot_graph_current_df = pd.concat([mot_graph_past.graph_df, mot_graph_future.graph_df]).reset_index(
         #     drop=True).drop(['index'], axis=1)
-
+        print(max(edge_ixs_past[0]),max(edge_ixs_past[1]))
         edge_ixs_past = to_scipy_sparse_matrix(edge_ixs_past).toarray()
+
         # connect all the new nodes to the past nodes
         edge_current_coo = F.pad(torch.from_numpy(edge_ixs_past),
                                  (0, node_fut.shape[0]-1, 0, node_fut.shape[0]-1), mode='constant', value=1)
         # to [2, num edges] torch tensor
         edge_current = (from_scipy_sparse_matrix(coo_matrix(edge_current_coo.cpu().numpy()))[0])
         node_current = torch.cat((node_past, node_fut))
-        print(len(node_past))
-        print(len(node_fut))
-        print(len(node_current))
-        print(edge_current[0])
+        print(node_past.shape, node_fut.shape)
+        print(node_current.shape)
         print(edge_current)
-        print(len(edge_ixs_gt[0]))
-        print(dataset_para['max_detects'])
-        print(edge_ixs_gt)
             # edge_current = edge_current -num_past_node
 
         # calculate edge attributes
@@ -394,6 +388,9 @@ if __name__ == '__main__':
                 print('[%d, %5d] loss: %.3f' %
                       (epoch + 1, i + 1, running_loss / 20))
                 running_loss = 0.0
+
+            writer.add_scalar('Training loss', total_loss, global_step=step)
+            step += 1
     #######################################################################################################
                 # nn.DataPar
     # for node_feat, edge_feat, label in train_loader:
