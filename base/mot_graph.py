@@ -92,7 +92,7 @@ class MOTGraph(object):
         self.cnn_model = cnn_model
 
         if seq_det_df is not None:
-            self.graph_df, self.frames = self._construct_graph_df(seq_det_df= seq_det_df.copy(),
+            self.graph_df, self.frames, self.ids = self._construct_graph_df(seq_det_df= seq_det_df.copy(),
                                                                   start_frame = start_frame,
                                                                   end_frame = end_frame,
                                                                   ensure_end_is_in=ensure_end_is_in)
@@ -136,7 +136,7 @@ class MOTGraph(object):
         graph_df = seq_det_df[seq_det_df.frame.isin(valid_frames)].copy()
         graph_df = graph_df.sort_values(by=['frame', 'detection_id']).reset_index(drop=True)
 
-        return graph_df, sorted(graph_df.frame.unique())
+        return graph_df, sorted(graph_df.frame.unique()), graph_df.id.values
 
     # def augment(self):
     #     augmentor = MOTGraphAugmentor(graph_df=self.graph_df, dataset_params=self.dataset_params)
@@ -257,7 +257,7 @@ class MOTGraph(object):
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
                                            max_frame_dist=self.max_frame_dist,
                                            use_cuda=self.inference_mode and self.graph_df['frame_path'].iloc[0].find('MOT17-03') == -1)
-        return reid_embeddings, edge_ixs
+        return reid_embeddings, edge_ixs, self.ids
 
     def construct_graph_object(self):
         """
