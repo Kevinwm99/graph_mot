@@ -105,6 +105,7 @@ class GraphData(torch.utils.data.Dataset):
         # print(node_feat.shape)
         return (node_feat, edge_ixs, labels)
 
+
 class TemporalRelationGraph(nn.Module):
     def __init__(self, in_channels, out_channels, heads=8):
         super(TemporalRelationGraph, self).__init__()
@@ -132,6 +133,7 @@ class TemporalRelationGraph(nn.Module):
         x = self.linear(H)
         return x
 
+
 if __name__ == '__main__':
 
     # os.environ["CUDA_VISIBLE_DEVICES"] = "6,7,8,9"
@@ -139,12 +141,16 @@ if __name__ == '__main__':
     save = '/home/kevinwm99/MOT/GCN/base/'
     vis = Visdom(port=19555, env='test')
     graph_dataset = GraphData(root=DATA_ROOT, all_seq_name=mot17_train, datasetpara=dataset_para, device=device, )
+    val_graph = GraphData(root=DATA_ROOT, all_seq_name=mot17_val, datasetpara=dataset_para, device=device, )
     print(len(graph_dataset))
     train_loader = torch.utils.data.DataLoader(dataset=graph_dataset,
                                                batch_size=1,
                                                num_workers=0)
                                                # drop_last = True tim hieu cai nay xem, nhieu khi bi anh huong nhieu
                                                # collate_fn=lambda x: x)
+    val_loader = torch.utils.data.DataLoader(dataset=val_graph,
+                                               batch_size=1,
+                                               num_workers=0)
     model = TemporalRelationGraph(in_channels=256, out_channels=256)
     model = model.to(device)
     criterion = nn.CrossEntropyLoss()
@@ -152,8 +158,9 @@ if __name__ == '__main__':
     epochs = 20
 
     # total_loss = 0.0
-    all_losses = list()
-    for epoch in range(1, epochs+1):
+    total_train_loss = list()
+    total_val_loss = list()
+    for epoch in range(epochs):
         print('Epoch {}/{}'.format(epoch, epochs - 1))
         print('-' * 10)
         total_tqdm = len(train_loader)
@@ -168,16 +175,37 @@ if __name__ == '__main__':
             running_loss = loss.clone().detach().cpu().item()
             all_loss.append(running_loss)
             pbar.update()
-            pbar.set_description('Loss: %.4f'%(running_loss))
+            pbar.set_description('running loss: %.4f'%(running_loss))
             #     running_loss = 0.0
 
-            vis.line(X=[i], Y=[running_loss], win='phuphuphu{}'.format(epoch), name='train{}'.format(epoch), update='append',
-                     opts=dict(showlegend=True, title='{} iter training loss'.format(epoch)))
-        all_losses.append(np.mean(np.array(all_loss)))
-        vis.line(X=[epoch], Y=[np.mean(np.array(all_loss))], win='phuphuphu1', name='train1', update='append',
-                     opts=dict(showlegend=True, title='epoch loss training loss'))
+            vis.line(X=[i+ epoch*total_tqdm], Y=[running_loss], win='train running loss', name='train', update='append',
+                     opts=dict(showlegend=True, title=' iter training loss'))
+        total_train_loss.append(np.mean(np.array(all_loss)))
+
         fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}.pth'.format(epoch, np.mean(np.array(all_loss)))
         torch.save(model.state_dict(), fname)
+
+        with torch.no_grad():
+            total_tqdm = len(val_loader)
+            pbar = tqdm(total=total_tqdm, position=0, leave=True)
+            all_loss_val = list()
+            for i, (node_feat, edge_ixs, labels) in enumerate(val_loader):
+                tempo_res = model(node_feat.squeeze(0).to(device), edge_ixs.squeeze(0).to(device))
+                loss = criterion(tempo_res, labels.long().to(device))
+                running_loss = loss.clone().detach().cpu().item()
+                all_loss_val.append(running_loss)
+                pbar.update()
+                pbar.set_description('val loss: %.4f' % (running_loss))
+                vis.line(X=[i + epoch*total_tqdm], Y=[running_loss], win='running val loss', name='val',
+                         update='append',
+                         opts=dict(showlegend=True, title=' iter val loss'))
+            val_loss = np.mean(np.array(all_loss_val))
+        total_val_loss.append(val_loss)
+        vis.line(X=[epoch], Y=[np.mean(np.array(all_loss))], win='total loss', name='train ', update='append',
+                 opts=dict(showlegend=True, title='total loss'))
+        vis.line(X=[epoch], Y=[np.mean(np.array(all_loss_val))], win='total loss', name='val', update='append',
+                 opts=dict(showlegend=True, title='total loss'))
     import matplotlib.pyplot as plt
-    plt.plot(all_losses)
+    plt.plot(total_train_loss)
+    plt.plot(total_val_loss)
     plt.savefig('/home/kevinwm99/MOT/GCN/base/models/loss.jpg')
