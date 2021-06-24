@@ -10,7 +10,7 @@ from torch_geometric.utils import from_scipy_sparse_matrix, to_scipy_sparse_matr
 from scipy.sparse import coo_matrix
 from torch_geometric.nn import GATConv
 import numpy as np
-from torch_geometric.data import DataLoader, Dataset
+from torch_geometric.data import DataLoader, Dataset, Data
 from visdom import Visdom
 from tqdm import tqdm as tqdm
 # step = 0
@@ -34,7 +34,7 @@ cnn_params = {
 DATA_ROOT = '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train'
 DATA_PATH = '/home/kevinwm99/MOT/mot_neural_solver/data'
 mot17_seqs = [f'MOT17-{seq_num:02}-GT' for seq_num in (2, 4, 5, 9, 10, 11, 13)]
-mot17_train = mot17_seqs[:5]
+mot17_train = mot17_seqs[2:5]
 mot17_val = mot17_seqs[5:]
 
 
@@ -47,7 +47,6 @@ class GraphData(torch.utils.data.Dataset):
         self.dataset_para = datasetpara
         self.device = device
         self.root = root
-        self.share_weight = torch.rand((32, 256))
         self._get_seq_frames_index()
 
     def _get_seq_frames_index(self):
@@ -60,10 +59,6 @@ class GraphData(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.seq_index)
-
-    def _dot(self, x, y):
-
-        return torch.dot(torch.dot(self.share_weight, x.T), torch.dot(self.share_weight, y))
 
     def __getitem__(self, index):
         seq_name, start_frame = self.seq_index[index]
@@ -79,10 +74,22 @@ class GraphData(torch.utils.data.Dataset):
                              max_frame_dist=5,
                              end_frame=start_frame + (self.max_frame_per_graph-2))
 
-        node_feat, edge_ixs, labels = mot_graph.load_node_and_edge()
-        pad_node = node_feat.size(0)
-        node_feat = F.pad(node_feat, [0, 0, 0, self.num_node_per_graph-pad_node],
-                          mode='constant', value=0)
+        node_feat, edge_ixs, labels, gt_ids = mot_graph.load_node_and_edge()
+        print("gt id: ", gt_ids)
+        print(gt_ids.shape)
+        # print(labels)
+        # print(labels.shape)
+        # exit()
+        graph_obj = Data(x=node_feat,
+                         edge_attr=None,
+                         edge_index=edge_ixs,
+                         y=labels,
+                         )
+        graph_obj_gt = Data(x=node_feat,
+                            edge_index=gt_ids)
+        # pad_node = node_feat.size(0)
+        # node_feat = F.pad(node_feat, [0, 0, 0, self.num_node_per_graph-pad_node],
+        #                   mode='constant', value=0)
         # indices = edge_ixs
         # edge_ixs = to_scipy_sparse_matrix(edge_ixs).toarray()
         # edge_ixs = F.pad(torch.from_numpy(edge_ixs),
@@ -98,12 +105,12 @@ class GraphData(torch.utils.data.Dataset):
         #
         # edge_ixs = torch.sparse.FloatTensor(i, v, torch.Size(shape))
         # # print(edge_ix.shape)
-        labels +=1
-        labels = np.pad(labels, (0, self.num_node_per_graph-pad_node))
+        # labels +=1
+        # labels = np.pad(labels, (0, self.num_node_per_graph-pad_node))
 
         # return node_feat, edge_ixs, labels
         # print(node_feat.shape)
-        return (node_feat, edge_ixs, labels)
+        return graph_obj, graph_obj_gt
 
 
 class TemporalRelationGraph(nn.Module):
@@ -114,10 +121,12 @@ class TemporalRelationGraph(nn.Module):
         self.gat = GATConv(in_channels, out_channels, heads=heads, dropout=0.0, concat=True)
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.conv1 = nn.Conv2d(1, 1, 1)
-        self.linear = nn.Linear(256, 250)
+        self.linear = nn.Linear(256, 128)
 
-    def forward(self, x, edge_index):
+    def forward(self, data):
+        x = data.x
         node_feat = x
+        edge_index = data.edge_index
         # graph attention or graph convolution
         x = (self.gat(x, edge_index,))
         x = torch.cat([x.split(self.out_channels, dim=1)[i].unsqueeze(0) for i in range(self.heads)],
@@ -131,6 +140,21 @@ class TemporalRelationGraph(nn.Module):
         fuse = torch.sum(z * x, dim=0)
         H = F.relu(fuse + node_feat)
         x = self.linear(H)
+        print(x.shape)
+        exit()
+        H = H.view(H.shape[1], H.shape[2])
+        print(H.shape)
+        # exit()
+        print(H[edge_index[0]].shape)
+        # exit()
+        hadamard_dist = torch.mul(H[edge_index[0]], H[edge_index[1]])
+        print(hadamard_dist)
+        print(hadamard_dist.shape)
+        print(H.shape)
+        print(edge_index)
+        print(edge_index.shape)
+        exit()
+
         return x
 
 
@@ -139,15 +163,16 @@ if __name__ == '__main__':
     # os.environ["CUDA_VISIBLE_DEVICES"] = "6,7,8,9"
     device = torch.device('cuda:6')
     save = '/home/kevinwm99/MOT/GCN/base/'
-    vis = Visdom(port=19555, env='test')
+    # vis = Visdom(port=19555, env='test')
     graph_dataset = GraphData(root=DATA_ROOT, all_seq_name=mot17_train, datasetpara=dataset_para, device=device, )
     val_graph = GraphData(root=DATA_ROOT, all_seq_name=mot17_val, datasetpara=dataset_para, device=device, )
     print(len(graph_dataset))
-    train_loader = torch.utils.data.DataLoader(dataset=graph_dataset,
-                                               batch_size=1,
+    train_loader = DataLoader(dataset=graph_dataset,
+                                               batch_size=4,
                                                num_workers=0)
                                                # drop_last = True tim hieu cai nay xem, nhieu khi bi anh huong nhieu
                                                # collate_fn=lambda x: x)
+
     val_loader = torch.utils.data.DataLoader(dataset=val_graph,
                                                batch_size=1,
                                                num_workers=0)
@@ -157,6 +182,15 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     epochs = 20
 
+    for i, (batch, batch_gt) in enumerate(train_loader):
+        # print(batch.x)
+        # print(batch.x.shape)
+        # print(batch.y)
+        # print(batch.edge_index)
+        batch = batch.to(device)
+        batch_gt = batch_gt.to(device)
+        out = model(batch)
+        # exit()
     # total_loss = 0.0
     total_train_loss = list()
     total_val_loss = list()

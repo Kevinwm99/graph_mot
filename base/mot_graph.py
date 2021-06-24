@@ -257,7 +257,20 @@ class MOTGraph(object):
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
                                            max_frame_dist=self.max_frame_dist,
                                            use_cuda=self.inference_mode and self.graph_df['frame_path'].iloc[0].find('MOT17-03') == -1)
-        return reid_embeddings, edge_ixs, self.ids
+        gt_ids = self._get_edge_ix_gt()
+        return reid_embeddings, edge_ixs, self.ids, gt_ids
+
+    def _get_edge_ix_gt(self):
+        unique_ids = self.graph_df.id.unique()
+        detection_id = torch.from_numpy(np.array(self.ids))
+        max_frame_dist = 1
+        edge_ixs = []
+        for id_ in unique_ids:
+            frame_idx = (np.array(self.graph_df['detection_id'][self.graph_df['id']==id_]))
+            for start_frame_ix, end_frame_ix in zip(frame_idx[:-1], frame_idx[1:]):
+                edge_ixs.append([start_frame_ix,end_frame_ix])
+
+        return torch.from_numpy(np.array(edge_ixs).T)
 
     def construct_graph_object(self):
         """
