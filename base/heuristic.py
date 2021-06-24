@@ -371,7 +371,8 @@ if __name__ == '__main__':
             # print("pass2")
             # # print(predictions[0])
             #
-            loss_each_layer = [criterion(prediction.squeeze(0), label.long().to(device)) for prediction in predictions]
+            loss_each_layer = [criterion(prediction.squeeze(0), lab
+                               el.long().to(device)) for prediction in predictions]
 
             total_loss = []
             for l in range(num_layers-1):

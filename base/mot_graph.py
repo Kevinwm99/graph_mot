@@ -252,21 +252,27 @@ class MOTGraph(object):
         self.graph_obj.edge_labels = torch.zeros_like(same_id, dtype = torch.float)
         self.graph_obj.edge_labels[active_edge_ixs] = 1
 
-    def load_node_and_edge(self):
+    def load_node_and_edge(self, num_obj_prev):
         reid_embeddings, node_feats = self._load_appearance_data()
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
                                            max_frame_dist=self.max_frame_dist,
                                            use_cuda=self.inference_mode and self.graph_df['frame_path'].iloc[0].find('MOT17-03') == -1)
-        gt_ids = self._get_edge_ix_gt()
+        gt_ids = self._get_edge_ix_gt(num_obj_prev)
         return reid_embeddings, edge_ixs, self.ids, gt_ids
 
-    def _get_edge_ix_gt(self):
+    def _get_edge_ix_gt(self, num_obj_prev):
+        self.graph_df['detection_id'] = self.graph_df['detection_id'] - self.graph_df['detection_id'][0]
         unique_ids = self.graph_df.id.unique()
+        # print(unique_ids)
+        # print(self.graph_df)
         detection_id = torch.from_numpy(np.array(self.ids))
         max_frame_dist = 1
         edge_ixs = []
         for id_ in unique_ids:
-            frame_idx = (np.array(self.graph_df['detection_id'][self.graph_df['id']==id_]))
+            frame_idx = np.array(self.graph_df['detection_id'][self.graph_df['id'] == id_])
+
+            if len(frame_idx)==1: # tracklet appear in the current frame with no link to the past
+                edge_ixs.append([frame_idx[0], frame_idx[0]])
             for start_frame_ix, end_frame_ix in zip(frame_idx[:-1], frame_idx[1:]):
                 edge_ixs.append([start_frame_ix,end_frame_ix])
 

@@ -34,7 +34,7 @@ cnn_params = {
 DATA_ROOT = '/home/kevinwm99/MOT/mot_neural_solver/data/MOT17Labels/train'
 DATA_PATH = '/home/kevinwm99/MOT/mot_neural_solver/data'
 mot17_seqs = [f'MOT17-{seq_num:02}-GT' for seq_num in (2, 4, 5, 9, 10, 11, 13)]
-mot17_train = mot17_seqs[2:5]
+mot17_train = mot17_seqs[:5]
 mot17_val = mot17_seqs[5:]
 
 
@@ -74,9 +74,17 @@ class GraphData(torch.utils.data.Dataset):
                              max_frame_dist=5,
                              end_frame=start_frame + (self.max_frame_per_graph-2))
 
-        node_feat, edge_ixs, labels, gt_ids = mot_graph.load_node_and_edge()
-        print("gt id: ", gt_ids)
-        print(gt_ids.shape)
+        if start_frame == 1:
+            num_obj_prev = 0
+        else:
+            num_obj_prev= len(df.loc[df['frame']<start_frame])
+
+
+        node_feat, edge_ixs, labels, gt_ids = mot_graph.load_node_and_edge(num_obj_prev)
+        # print(mot_graph.graph_df['detection_id']-mot_graph.graph_df['detection_id'][0])
+        # print("edge index", edge_ixs)
+        # print(gt_ids.shape)
+        # print(edge_ixs.shape)
         # print(labels)
         # print(labels.shape)
         # exit()
@@ -138,58 +146,110 @@ class TemporalRelationGraph(nn.Module):
         x = F.relu(x)
         x = F.softmax(x, dim=0)
         fuse = torch.sum(z * x, dim=0)
+        # print(fuse.shape)
+        # fuse = self.linear(fuse.view(fuse.shape[2],shape[1]))
         H = F.relu(fuse + node_feat)
         x = self.linear(H)
-        print(x.shape)
-        exit()
-        H = H.view(H.shape[1], H.shape[2])
-        print(H.shape)
+        x = x.view(x.shape[1], x.shape[2])
+        x = F.cosine_similarity(x[edge_index[0]], x[edge_index[1]])
+        # print(x.shape)
         # exit()
-        print(H[edge_index[0]].shape)
+        # H = H.view(H.shape[1], H.shape[2])
+        # print(H.shape)
+        # # exit()
+        # print(H[edge_index[0]].shape)
+        # # exit()
+        # hadamard_dist = torch.mul(H[edge_index[0]], H[edge_index[1]])
+        # print(hadamard_dist)
+        # print(hadamard_dist.shape)
+        # print(H.shape)
+        # print(edge_index)
+        # print(edge_index.shape)
         # exit()
-        hadamard_dist = torch.mul(H[edge_index[0]], H[edge_index[1]])
-        print(hadamard_dist)
-        print(hadamard_dist.shape)
-        print(H.shape)
-        print(edge_index)
-        print(edge_index.shape)
-        exit()
 
-        return x
+        return torch.sigmoid(x)
 
 
 if __name__ == '__main__':
 
-    # os.environ["CUDA_VISIBLE_DEVICES"] = "6,7,8,9"
-    device = torch.device('cuda:6')
+    # os.environ["CUDA_VISIBLE_DEVICES"] = "6"
+    device = torch.device(0)
+    # device = torch.device('cuda:6')
     save = '/home/kevinwm99/MOT/GCN/base/'
-    # vis = Visdom(port=19555, env='test')
+    vis = Visdom(port=19555, env='test')
     graph_dataset = GraphData(root=DATA_ROOT, all_seq_name=mot17_train, datasetpara=dataset_para, device=device, )
     val_graph = GraphData(root=DATA_ROOT, all_seq_name=mot17_val, datasetpara=dataset_para, device=device, )
     print(len(graph_dataset))
     train_loader = DataLoader(dataset=graph_dataset,
                                                batch_size=4,
-                                               num_workers=0)
+                                               num_workers=0, pin_memory=True)
                                                # drop_last = True tim hieu cai nay xem, nhieu khi bi anh huong nhieu
                                                # collate_fn=lambda x: x)
 
-    val_loader = torch.utils.data.DataLoader(dataset=val_graph,
-                                               batch_size=1,
-                                               num_workers=0)
+    val_loader = DataLoader(dataset=val_graph,
+                                               batch_size=4,
+                                               num_workers=0, pin_memory=True)
     model = TemporalRelationGraph(in_channels=256, out_channels=256)
     model = model.to(device)
-    criterion = nn.CrossEntropyLoss()
+    print(sum(p.numel() for p in model.parameters() if p.requires_grad))
+    # criterion = nn.CrossEntropyLoss()
+    criterion = nn.BCELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    epochs = 20
+    epochs = 30
+    #
+    # for i, (batch, batch_gt) in enumerate(train_loader):
+    #
+    #     print(batch.edge_index)
+    #     print(batch.edge_index.shape)
+    #     batch = batch.to(device)
+    #     batch_gt = batch_gt.to(device)
+    #     print(batch_gt.edge_index)
+    #     print(batch_gt.edge_index.shape)
+    #     label =[]
+    #     edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
+    #     edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
+    #     for i in range(len(edge_ix)):
+    #         mask = (np.array(edge_ix[i], dtype=int)>0)
+    #         val = np.array(edge_ix_gt[i][mask])
+    #         if val != []:
+    #             label.append(torch.from_numpy(val))
+    #     label = torch.cat(label).shape
+    #     print(len(label))
+    #     print(torch.from_numpy(np.array(label)))
+    #     exit()
+    #     out = model(batch)
+    #
+    #     label = torch.zeros_like(out)
+    #     flag = True
+    #     for i, val in enumerate(zip(batch.edge_index[0].cpu(), batch.edge_index[1].cpu())):
+    #         if flag:
+    #             # check
+    #             for j, val_ in enumerate(zip(batch_gt.edge_index[0].cpu(), batch_gt.edge_index[1].cpu())):
+    #                 if val_ == val:
+    #                     print(val)
+    #                     label[i] = 1
+    #                     prev = batch_gt.edge_index[0][j]
+    #                     flag = False
+    #         else:
+    #             # print("current: ", batch.edge_index[0][i], prev)
+    #             if batch.edge_index[0][i] != prev:
+    #                 flag = True
+    #
+    #     loss = criterion(out, label.to(device, non_blocking=True).float())
+    #     loss.backward()
+    #     print(loss)
+    #     print(label.shape)
+    #     print(out)
+    #     print(out.shape)
+    #     exit()
+    #     # print(torch.max(out))
+    #     print(batch.edge_index)
+    #     print(torch.sparse_coo_tensor(batch.edge_index, out).to_dense().shape)
+    #     print(torch.sparse_coo_tensor(batch.edge_index, out, [gt_ids.shape[0], gt_ids.shape[1]]).to_dense())
+    #     print(torch.sparse_coo_tensor(batch.edge_index, out).to_dense())
 
-    for i, (batch, batch_gt) in enumerate(train_loader):
-        # print(batch.x)
-        # print(batch.x.shape)
-        # print(batch.y)
-        # print(batch.edge_index)
-        batch = batch.to(device)
-        batch_gt = batch_gt.to(device)
-        out = model(batch)
+    #     exit()
+
         # exit()
     # total_loss = 0.0
     total_train_loss = list()
@@ -200,10 +260,26 @@ if __name__ == '__main__':
         total_tqdm = len(train_loader)
         pbar = tqdm(total=total_tqdm, position=0, leave=True)
         all_loss = list()
-        for i, (node_feat, edge_ixs, labels) in enumerate(train_loader):
-            tempo_res = model(node_feat.squeeze(0).to(device), edge_ixs.squeeze(0).to(device))
+        for i, (batch, batch_gt) in enumerate(train_loader):
             optimizer.zero_grad()
-            loss = criterion(tempo_res, labels.long().to(device))
+            batch = batch.to(device, non_blocking=True)
+            batch_gt = batch_gt.to(device, non_blocking=True)
+            # tempo_res = model(node_feat.squeeze(0).to(device), edge_ixs.squeeze(0).to(device))
+            output = model(batch)
+            label = []
+            edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
+            edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
+            for j in range(len(edge_ix)):
+                mask = (np.array(edge_ix[j], dtype=int) > 0)
+                val = np.array(edge_ix_gt[j][mask])
+                if val.size != 0:
+                    label.append(torch.from_numpy(val))
+            label = torch.cat(label)
+            # labels = torch.from_numpy(to_scipy_sparse_matrix(batch_gt.edge_index).toarray())
+            # output_sparse = torch.sparse_coo_tensor(batch.edge_index, output, [labels.shape[0], labels.shape[0]]).to_dense()
+            # print(output_sparse)
+            # print(output)
+            loss = criterion(output, label.to(device, non_blocking=True).float())
             loss.backward()
             optimizer.step()
             running_loss = loss.clone().detach().cpu().item()
@@ -223,9 +299,20 @@ if __name__ == '__main__':
             total_tqdm = len(val_loader)
             pbar = tqdm(total=total_tqdm, position=0, leave=True)
             all_loss_val = list()
-            for i, (node_feat, edge_ixs, labels) in enumerate(val_loader):
-                tempo_res = model(node_feat.squeeze(0).to(device), edge_ixs.squeeze(0).to(device))
-                loss = criterion(tempo_res, labels.long().to(device))
+            for i, (batch,batch_gt) in enumerate(val_loader):
+                batch = batch.to(device, non_blocking=True)
+                batch_gt = batch_gt.to(device, non_blocking=True)
+                output = model(batch)
+                label = []
+                edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
+                edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
+                for j in range(len(edge_ix)):
+                    mask = (np.array(edge_ix[j], dtype=int) > 0)
+                    val = np.array(edge_ix_gt[j][mask])
+                    if val.size != 0:
+                        label.append(torch.from_numpy(val))
+                label = torch.cat(label)
+                loss = criterion(output, label.to(device, non_blocking=True).float())
                 running_loss = loss.clone().detach().cpu().item()
                 all_loss_val.append(running_loss)
                 pbar.update()
