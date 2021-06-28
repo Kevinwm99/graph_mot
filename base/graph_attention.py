@@ -8,11 +8,13 @@ import torch.nn.functional as F
 import torch.nn as nn
 from torch_geometric.utils import from_scipy_sparse_matrix, to_scipy_sparse_matrix
 from scipy.sparse import coo_matrix
-from torch_geometric.nn import GATConv
+from torch_geometric.nn import GATConv, GCNConv
 import numpy as np
 from torch_geometric.data import DataLoader, Dataset, Data
 from visdom import Visdom
 from tqdm import tqdm as tqdm
+import time
+from evaluation import compute_perform_metrics
 # step = 0
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'node_embeddings_dir': 'resnet50_conv',
@@ -36,6 +38,51 @@ DATA_PATH = '/home/kevinwm99/MOT/mot_neural_solver/data'
 mot17_seqs = [f'MOT17-{seq_num:02}-GT' for seq_num in (2, 4, 5, 9, 10, 11, 13)]
 mot17_train = mot17_seqs[:5]
 mot17_val = mot17_seqs[5:]
+
+
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self, name, fmt=':f'):
+        self.name = name
+        self.fmt = fmt
+        self.reset()
+
+    def reset(self):
+        self.val = 0
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.val = val
+        self.sum += val * n
+        self.count += n
+        self.avg = self.sum / self.count
+
+    def __str__(self):
+        fmtstr = '{name} {val' + self.fmt + '} ({avg' + self.fmt + '})'
+        return fmtstr.format(**self.__dict__)
+class ProgressMeter(object):
+    def __init__(self, num_batches, meters, prefix=""):
+        self.batch_fmtstr = self._get_batch_fmtstr(num_batches)
+        self.meters = meters
+        self.prefix = prefix
+
+    def display(self, batch):
+        entries = [self.prefix + self.batch_fmtstr.format(batch)]
+        entries += [str(meter) for meter in self.meters]
+        print('\t'.join(entries))
+
+    def _get_batch_fmtstr(self, num_batches):
+        num_digits = len(str(num_batches // 1))
+        fmt = '{:' + str(num_digits) + 'd}'
+        return '[' + fmt + '/' + fmt.format(num_batches) + ']'
+
+
+def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
+    torch.save(state, filename)
+    if is_best:
+        shutil.copyfile(filename, 'model_best.pth.tar')
 
 
 class GraphData(torch.utils.data.Dataset):
@@ -79,46 +126,21 @@ class GraphData(torch.utils.data.Dataset):
         else:
             num_obj_prev= len(df.loc[df['frame']<start_frame])
 
+        graph_obj = mot_graph.construct_graph_obj_new(num_obj_prev)
 
-        node_feat, edge_ixs, labels, gt_ids = mot_graph.load_node_and_edge(num_obj_prev)
-        # print(mot_graph.graph_df['detection_id']-mot_graph.graph_df['detection_id'][0])
-        # print("edge index", edge_ixs)
-        # print(gt_ids.shape)
-        # print(edge_ixs.shape)
-        # print(labels)
-        # print(labels.shape)
-        # exit()
-        graph_obj = Data(x=node_feat,
-                         edge_attr=None,
-                         edge_index=edge_ixs,
-                         y=labels,
-                         )
-        graph_obj_gt = Data(x=node_feat,
-                            edge_index=gt_ids)
-        # pad_node = node_feat.size(0)
-        # node_feat = F.pad(node_feat, [0, 0, 0, self.num_node_per_graph-pad_node],
-        #                   mode='constant', value=0)
-        # indices = edge_ixs
-        # edge_ixs = to_scipy_sparse_matrix(edge_ixs).toarray()
-        # edge_ixs = F.pad(torch.from_numpy(edge_ixs),
-        #                          [0, self.num_node_per_graph-pad_node, 0,
-        #                           self.num_node_per_graph-pad_node], mode='constant', value=0)
-        # edge_ixs_coo = coo_matrix(edge_ixs.numpy())
-        # values = edge_ixs_coo.data
-        # # indices = np.vstack((coo.row, coo.col))
-        #
-        # i = torch.LongTensor(indices)
-        # v = torch.FloatTensor(values)
-        # shape = edge_ixs_coo.shape
-        #
-        # edge_ixs = torch.sparse.FloatTensor(i, v, torch.Size(shape))
-        # # print(edge_ix.shape)
-        # labels +=1
-        # labels = np.pad(labels, (0, self.num_node_per_graph-pad_node))
+        # node_feat, edge_ixs, labels, gt_ids = mot_graph.load_node_and_edge(num_obj_prev)
 
-        # return node_feat, edge_ixs, labels
-        # print(node_feat.shape)
-        return graph_obj, graph_obj_gt
+        #
+        # graph_obj = Data(x=node_feat,
+        #                  edge_attr=None,
+        #                  edge_index=edge_ixs,
+        #                  y=labels,
+        #                  )
+        #
+        # graph_obj_gt = Data(x=node_feat,
+        #                     edge_index=gt_ids)
+
+        return graph_obj
 
 
 class TemporalRelationGraph(nn.Module):
@@ -126,7 +148,9 @@ class TemporalRelationGraph(nn.Module):
         super(TemporalRelationGraph, self).__init__()
         self.heads = heads
         self.out_channels = out_channels
-        self.gat = GATConv(in_channels, out_channels, heads=heads, dropout=0.0, concat=True)
+        self.gconv1 = GCNConv(in_channels, out_channels)
+        # self.conv2 = GCNConv(out_channels, out_channels)
+        self.gat = GATConv(out_channels, out_channels, heads=heads, dropout=0.0, concat=True)
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.conv1 = nn.Conv2d(1, 1, 1)
         self.linear = nn.Linear(256, 128)
@@ -136,42 +160,135 @@ class TemporalRelationGraph(nn.Module):
         node_feat = x
         edge_index = data.edge_index
         # graph attention or graph convolution
+        # x = F.relu(self.gconv1(x, edge_index))
         x = (self.gat(x, edge_index,))
         x = torch.cat([x.split(self.out_channels, dim=1)[i].unsqueeze(0) for i in range(self.heads)],
                       dim=0).unsqueeze(1)
         z = x
         # multi head relation aggregator
         x = self.global_pool(x)
+        # print("pool", x)
         x = self.conv1(x)
+        # print("conv: ",x)
         x = F.relu(x)
         x = F.softmax(x, dim=0)
+        # print("softmax: ",x)
         fuse = torch.sum(z * x, dim=0)
+        # print("fuse: ", fuse)
+        # print("node feat:", node_feat)
         # print(fuse.shape)
         # fuse = self.linear(fuse.view(fuse.shape[2],shape[1]))
         H = F.relu(fuse + node_feat)
         x = self.linear(H)
+        # print(H.shape)
         x = x.view(x.shape[1], x.shape[2])
         x = F.cosine_similarity(x[edge_index[0]], x[edge_index[1]])
-        # print(x.shape)
-        # exit()
-        # H = H.view(H.shape[1], H.shape[2])
-        # print(H.shape)
-        # # exit()
-        # print(H[edge_index[0]].shape)
-        # # exit()
-        # hadamard_dist = torch.mul(H[edge_index[0]], H[edge_index[1]])
-        # print(hadamard_dist)
-        # print(hadamard_dist.shape)
-        # print(H.shape)
-        # print(edge_index)
-        # print(edge_index.shape)
-        # exit()
 
-        return torch.sigmoid(x)
+
+        return x
+
+
+def train(train_loader, model, criterion, optimizer, epoch, device, vis):
+    batch_time = AverageMeter('Time', ':6.3f')
+    data_time = AverageMeter('Data', ':6.3f')
+    losses = AverageMeter('Loss', ':.4e')
+    progress = ProgressMeter(
+        len(train_loader),
+        [batch_time, data_time, losses],
+        prefix="Epoch: [{}]".format(epoch))
+
+    model.train()
+
+    end = time.time()
+    total_tqdm = len(train_loader)
+    pbar = tqdm(total=total_tqdm, position=0, leave=True)
+    all_loss = list()
+    for i, (batch) in enumerate(train_loader):
+        data_time.update(time.time() - end)
+
+        batch = batch.to(device, non_blocking=True)
+        # batch_gt = batch_gt.to(device, non_blocking=True)
+        output = model(batch)
+        # # prepare label
+        # label = []
+        # edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
+        # edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
+        # for j in range(len(edge_ix)):
+        #     mask = (np.array(edge_ix[j], dtype=int) > 0)
+        #     val = np.array(edge_ix_gt[j][mask])
+        #     if val.size != 0:
+        #         label.append(torch.from_numpy(val))
+        # label = torch.cat(label)
+
+        optimizer.zero_grad()
+        positive_vals = batch.edge_labels.sum()
+        pos_weight = (batch.edge_labels.shape[0] - positive_vals) / positive_vals
+        loss = F.binary_cross_entropy_with_logits(output.view(-1), batch.edge_labels.view(-1).float(),
+                                                  pos_weight=pos_weight)
+        logs = {**compute_perform_metrics(output, batch), **{'loss': loss}}
+        losses.update(loss.item())
+        loss.backward()
+        optimizer.step()
+        batch_time.update(time.time() - end)
+        end = time.time()
+        # if i % 20:
+        #     progress.display(i)
+        running_loss = loss.clone().detach().cpu().item()
+        all_loss.append(running_loss)
+        pbar.update()
+        pbar.set_description('train running loss: %.4f' % (running_loss))
+        #     running_loss = 0.0
+
+        vis.line(X=[i + epoch * total_tqdm], Y=[running_loss], win='train running loss', name='train', update='append',
+                 opts=dict(showlegend=True, title=' iter training loss'))
+    all_loss = np.mean(np.array(all_loss))
+    fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}.pth'.format(epoch, np.mean(np.array(all_loss)))
+    torch.save(model.state_dict(), fname)
+    return np.mean(np.array(all_loss)), logs
+
+
+def validate(val_loader, model, criterion, epoch, device, vis):
+    batch_time = AverageMeter('Time', ":6.3f")
+    losses = AverageMeter('Loss', ":6.3f")
+    progress = ProgressMeter(
+        len(val_loader),
+        [batch_time, losses],
+        prefix="Test: "
+    )
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        total_tqdm = len(val_loader)
+        pbar = tqdm(total=total_tqdm, position=0, leave=True)
+        all_val_loss = list()
+        for i, (batch) in enumerate(val_loader):
+            batch = batch.to(device, non_blocking=True)
+            output = model(batch)
+            positive_vals = batch.edge_labels.sum()
+            pos_weight = (batch.edge_labels.shape[0] - positive_vals) / positive_vals
+            loss = F.binary_cross_entropy_with_logits(output.view(-1), batch.edge_labels.view(-1).float(),
+                                                      pos_weight=pos_weight)
+            logs = {**compute_perform_metrics(output, batch), **{'loss': loss}}
+            losses.update(loss.item())
+            batch_time.update(time.time() - end)
+            end = time.time()
+            # if i % 20:
+            #     progress.display(i)
+            running_loss = loss.clone().detach().cpu().item()
+            all_val_loss.append(running_loss)
+            pbar.update()
+            pbar.set_description('val running loss: %.4f' % (running_loss))
+            vis.line(X=[i + epoch * total_tqdm], Y=[running_loss], win='running val loss', name='val',
+                     update='append',
+                     opts=dict(showlegend=True, title=' iter val loss'))
+        all_val_loss = np.mean(np.array(all_val_loss))
+
+    return all_val_loss, logs
 
 
 if __name__ == '__main__':
-
+    torch.backends.cudnn.benchmark = True
     # os.environ["CUDA_VISIBLE_DEVICES"] = "6"
     device = torch.device(0)
     # device = torch.device('cuda:6')
@@ -181,151 +298,54 @@ if __name__ == '__main__':
     val_graph = GraphData(root=DATA_ROOT, all_seq_name=mot17_val, datasetpara=dataset_para, device=device, )
     print(len(graph_dataset))
     train_loader = DataLoader(dataset=graph_dataset,
-                                               batch_size=4,
-                                               num_workers=0, pin_memory=True)
-                                               # drop_last = True tim hieu cai nay xem, nhieu khi bi anh huong nhieu
-                                               # collate_fn=lambda x: x)
+                              batch_size=32,
+                              num_workers=32, shuffle=True, pin_memory=True)
 
     val_loader = DataLoader(dataset=val_graph,
-                                               batch_size=4,
-                                               num_workers=0, pin_memory=True)
+                            batch_size=32,
+                            num_workers=32, shuffle=True, pin_memory=True)
     model = TemporalRelationGraph(in_channels=256, out_channels=256)
     model = model.to(device)
     print(sum(p.numel() for p in model.parameters() if p.requires_grad))
     # criterion = nn.CrossEntropyLoss()
-    criterion = nn.BCELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-    epochs = 30
-    #
-    # for i, (batch, batch_gt) in enumerate(train_loader):
-    #
-    #     print(batch.edge_index)
-    #     print(batch.edge_index.shape)
-    #     batch = batch.to(device)
-    #     batch_gt = batch_gt.to(device)
-    #     print(batch_gt.edge_index)
-    #     print(batch_gt.edge_index.shape)
-    #     label =[]
-    #     edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
-    #     edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
-    #     for i in range(len(edge_ix)):
-    #         mask = (np.array(edge_ix[i], dtype=int)>0)
-    #         val = np.array(edge_ix_gt[i][mask])
-    #         if val != []:
-    #             label.append(torch.from_numpy(val))
-    #     label = torch.cat(label).shape
-    #     print(len(label))
-    #     print(torch.from_numpy(np.array(label)))
-    #     exit()
-    #     out = model(batch)
-    #
-    #     label = torch.zeros_like(out)
-    #     flag = True
-    #     for i, val in enumerate(zip(batch.edge_index[0].cpu(), batch.edge_index[1].cpu())):
-    #         if flag:
-    #             # check
-    #             for j, val_ in enumerate(zip(batch_gt.edge_index[0].cpu(), batch_gt.edge_index[1].cpu())):
-    #                 if val_ == val:
-    #                     print(val)
-    #                     label[i] = 1
-    #                     prev = batch_gt.edge_index[0][j]
-    #                     flag = False
-    #         else:
-    #             # print("current: ", batch.edge_index[0][i], prev)
-    #             if batch.edge_index[0][i] != prev:
-    #                 flag = True
-    #
-    #     loss = criterion(out, label.to(device, non_blocking=True).float())
-    #     loss.backward()
-    #     print(loss)
-    #     print(label.shape)
-    #     print(out)
-    #     print(out.shape)
-    #     exit()
-    #     # print(torch.max(out))
-    #     print(batch.edge_index)
-    #     print(torch.sparse_coo_tensor(batch.edge_index, out).to_dense().shape)
-    #     print(torch.sparse_coo_tensor(batch.edge_index, out, [gt_ids.shape[0], gt_ids.shape[1]]).to_dense())
-    #     print(torch.sparse_coo_tensor(batch.edge_index, out).to_dense())
-
-    #     exit()
-
-        # exit()
-    # total_loss = 0.0
+    criterion = nn.BCEWithLogitsLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4 )
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,40], gamma=0.5)
+    epochs = 50
     total_train_loss = list()
     total_val_loss = list()
     for epoch in range(epochs):
         print('Epoch {}/{}'.format(epoch, epochs - 1))
         print('-' * 10)
-        total_tqdm = len(train_loader)
-        pbar = tqdm(total=total_tqdm, position=0, leave=True)
-        all_loss = list()
-        for i, (batch, batch_gt) in enumerate(train_loader):
-            optimizer.zero_grad()
-            batch = batch.to(device, non_blocking=True)
-            batch_gt = batch_gt.to(device, non_blocking=True)
-            # tempo_res = model(node_feat.squeeze(0).to(device), edge_ixs.squeeze(0).to(device))
-            output = model(batch)
-            label = []
-            edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
-            edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
-            for j in range(len(edge_ix)):
-                mask = (np.array(edge_ix[j], dtype=int) > 0)
-                val = np.array(edge_ix_gt[j][mask])
-                if val.size != 0:
-                    label.append(torch.from_numpy(val))
-            label = torch.cat(label)
-            # labels = torch.from_numpy(to_scipy_sparse_matrix(batch_gt.edge_index).toarray())
-            # output_sparse = torch.sparse_coo_tensor(batch.edge_index, output, [labels.shape[0], labels.shape[0]]).to_dense()
-            # print(output_sparse)
-            # print(output)
-            loss = criterion(output, label.to(device, non_blocking=True).float())
-            loss.backward()
-            optimizer.step()
-            running_loss = loss.clone().detach().cpu().item()
-            all_loss.append(running_loss)
-            pbar.update()
-            pbar.set_description('running loss: %.4f'%(running_loss))
-            #     running_loss = 0.0
 
-            vis.line(X=[i+ epoch*total_tqdm], Y=[running_loss], win='train running loss', name='train', update='append',
-                     opts=dict(showlegend=True, title=' iter training loss'))
-        total_train_loss.append(np.mean(np.array(all_loss)))
+        all_loss, train_logs = train(train_loader, model, criterion, optimizer, epoch, device, vis)
+        all_val_loss, val_logs = validate(val_loader, model, criterion, epoch, device, vis)
+        # print(train_logs.items())
+        # print(val_logs.items())
+        total_train_loss.append(all_loss)
+        total_val_loss.append(all_val_loss)
 
-        fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}.pth'.format(epoch, np.mean(np.array(all_loss)))
-        torch.save(model.state_dict(), fname)
-
-        with torch.no_grad():
-            total_tqdm = len(val_loader)
-            pbar = tqdm(total=total_tqdm, position=0, leave=True)
-            all_loss_val = list()
-            for i, (batch,batch_gt) in enumerate(val_loader):
-                batch = batch.to(device, non_blocking=True)
-                batch_gt = batch_gt.to(device, non_blocking=True)
-                output = model(batch)
-                label = []
-                edge_ix_gt = to_scipy_sparse_matrix(batch_gt.edge_index).toarray()
-                edge_ix = to_scipy_sparse_matrix(batch.edge_index).toarray()
-                for j in range(len(edge_ix)):
-                    mask = (np.array(edge_ix[j], dtype=int) > 0)
-                    val = np.array(edge_ix_gt[j][mask])
-                    if val.size != 0:
-                        label.append(torch.from_numpy(val))
-                label = torch.cat(label)
-                loss = criterion(output, label.to(device, non_blocking=True).float())
-                running_loss = loss.clone().detach().cpu().item()
-                all_loss_val.append(running_loss)
-                pbar.update()
-                pbar.set_description('val loss: %.4f' % (running_loss))
-                vis.line(X=[i + epoch*total_tqdm], Y=[running_loss], win='running val loss', name='val',
-                         update='append',
-                         opts=dict(showlegend=True, title=' iter val loss'))
-            val_loss = np.mean(np.array(all_loss_val))
-        total_val_loss.append(val_loss)
-        vis.line(X=[epoch], Y=[np.mean(np.array(all_loss))], win='total loss', name='train ', update='append',
+        vis.line(X=[epoch], Y=[all_loss], win='total loss', name='train ', update='append',
                  opts=dict(showlegend=True, title='total loss'))
-        vis.line(X=[epoch], Y=[np.mean(np.array(all_loss_val))], win='total loss', name='val', update='append',
+        vis.line(X=[epoch], Y=[all_val_loss], win='total loss', name='val', update='append',
                  opts=dict(showlegend=True, title='total loss'))
+
+        vis.line(X=[epoch], Y=[train_logs['accuracy']], win='Accuracy', name='train ', update='append',
+                 opts=dict(showlegend=True, title='Accuracy'))
+        vis.line(X=[epoch], Y=[val_logs['accuracy']], win='Accuracy', name='val ', update='append',
+                 opts=dict(showlegend=True, title='Accuracy'))
+
+        vis.line(X=[epoch], Y=[train_logs['recall']], win='Recall', name='train ', update='append',
+                 opts=dict(showlegend=True, title='Recall'))
+        vis.line(X=[epoch], Y=[val_logs['recall']], win='Recall', name='val ', update='append',
+                 opts=dict(showlegend=True, title='Recall'))
+
+        vis.line(X=[epoch], Y=[train_logs['precision']], win='Precision', name='train ', update='append',
+                 opts=dict(showlegend=True, title='Precision'))
+        vis.line(X=[epoch], Y=[val_logs['precision']], win='Precision', name='val ', update='append',
+                 opts=dict(showlegend=True, title='Precision'))
+
+        scheduler.step()
     import matplotlib.pyplot as plt
     plt.plot(total_train_loss)
     plt.plot(total_val_loss)

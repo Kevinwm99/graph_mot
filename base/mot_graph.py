@@ -252,6 +252,7 @@ class MOTGraph(object):
         self.graph_obj.edge_labels = torch.zeros_like(same_id, dtype = torch.float)
         self.graph_obj.edge_labels[active_edge_ixs] = 1
 
+
     def load_node_and_edge(self, num_obj_prev):
         reid_embeddings, node_feats = self._load_appearance_data()
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
@@ -317,3 +318,17 @@ class MOTGraph(object):
             self.graph_obj.reid_emb_dists = torch.cat((emb_dists, emb_dists))
 
         self.graph_obj.to(torch.device("cuda" if torch.cuda.is_available() and self.inference_mode else "cpu"))
+
+    def construct_graph_obj_new(self, num_obj_prev):
+        node_feat, edge_ixs, labels, gt_ids = self.load_node_and_edge(num_obj_prev)
+
+        self.graph_obj = Data(x=node_feat,
+                         edge_attr=None,
+                         edge_index=edge_ixs,
+                         y=labels,
+                         )
+        self.assign_edge_labels()
+        return self.graph_obj
+
+
+
