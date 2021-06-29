@@ -6,7 +6,7 @@ from pack import MOTSeqProcessor
 from loguru import logger
 import torch.nn.functional as F
 import torch.nn as nn
-from torch_geometric.utils import from_scipy_sparse_matrix, to_scipy_sparse_matrix
+from torch_geometric.utils import from_scipy_sparse_matrix, to_scipy_sparse_matrix, to_networkx
 from scipy.sparse import coo_matrix
 from torch_geometric.nn import GATConv, GCNConv
 import numpy as np
@@ -15,6 +15,8 @@ from visdom import Visdom
 from tqdm import tqdm as tqdm
 import time
 from evaluation import compute_perform_metrics
+import networkx as nx
+import torch_geometric
 # step = 0
 dataset_para = {'det_file_name': 'frcnn_prepr_det',
                 'node_embeddings_dir': 'resnet50_conv',
@@ -149,7 +151,7 @@ class TemporalRelationGraph(nn.Module):
         self.heads = heads
         self.out_channels = out_channels
         self.gconv1 = GCNConv(in_channels, out_channels)
-        # self.conv2 = GCNConv(out_channels, out_channels)
+        self.gconv2 = GCNConv(out_channels, out_channels)
         self.gat = GATConv(out_channels, out_channels, heads=heads, dropout=0.0, concat=True)
         self.global_pool = nn.AdaptiveAvgPool2d((1, 1))
         self.conv1 = nn.Conv2d(1, 1, 1)
@@ -160,7 +162,9 @@ class TemporalRelationGraph(nn.Module):
         node_feat = x
         edge_index = data.edge_index
         # graph attention or graph convolution
-        # x = F.relu(self.gconv1(x, edge_index))
+        x = F.relu(self.gconv1(x, edge_index))
+        x = F.relu(self.gconv2(x, edge_index))
+
         x = (self.gat(x, edge_index,))
         x = torch.cat([x.split(self.out_channels, dim=1)[i].unsqueeze(0) for i in range(self.heads)],
                       dim=0).unsqueeze(1)
@@ -178,13 +182,11 @@ class TemporalRelationGraph(nn.Module):
         # print("node feat:", node_feat)
         # print(fuse.shape)
         # fuse = self.linear(fuse.view(fuse.shape[2],shape[1]))
-        H = F.relu(fuse + node_feat)
-        x = self.linear(H)
+        x = F.relu(fuse + node_feat)
+        # x = self.linear(H)
         # print(H.shape)
         x = x.view(x.shape[1], x.shape[2])
         x = F.cosine_similarity(x[edge_index[0]], x[edge_index[1]])
-
-
         return x
 
 
@@ -242,9 +244,9 @@ def train(train_loader, model, criterion, optimizer, epoch, device, vis):
         vis.line(X=[i + epoch * total_tqdm], Y=[running_loss], win='train running loss', name='train', update='append',
                  opts=dict(showlegend=True, title=' iter training loss'))
     all_loss = np.mean(np.array(all_loss))
-    fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}.pth'.format(epoch, np.mean(np.array(all_loss)))
-    torch.save(model.state_dict(), fname)
-    return np.mean(np.array(all_loss)), logs
+    # fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}.pth'.format(epoch, np.mean(np.array(all_loss)))
+    # torch.save(model.state_dict(), fname)
+    return all_loss, logs
 
 
 def validate(val_loader, model, criterion, epoch, device, vis):
@@ -293,7 +295,7 @@ if __name__ == '__main__':
     device = torch.device(0)
     # device = torch.device('cuda:6')
     save = '/home/kevinwm99/MOT/GCN/base/'
-    vis = Visdom(port=19555, env='test')
+    vis = Visdom(port=19555, env='MOT-GCN')
     graph_dataset = GraphData(root=DATA_ROOT, all_seq_name=mot17_train, datasetpara=dataset_para, device=device, )
     val_graph = GraphData(root=DATA_ROOT, all_seq_name=mot17_val, datasetpara=dataset_para, device=device, )
     print(len(graph_dataset))
@@ -310,21 +312,34 @@ if __name__ == '__main__':
     # criterion = nn.CrossEntropyLoss()
     criterion = nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=0.0001, weight_decay=1e-4 )
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[20,40], gamma=0.5)
+    # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5, verbose=True)
     epochs = 50
     total_train_loss = list()
     total_val_loss = list()
+    best_acc = 0
     for epoch in range(epochs):
         print('Epoch {}/{}'.format(epoch, epochs - 1))
         print('-' * 10)
 
         all_loss, train_logs = train(train_loader, model, criterion, optimizer, epoch, device, vis)
         all_val_loss, val_logs = validate(val_loader, model, criterion, epoch, device, vis)
-        # print(train_logs.items())
-        # print(val_logs.items())
+        # scheduler.step()
+        # visualize
+        # for val_batch in val_loader:
+        #     break
+        # data = torch_geometric.data.Data(x=val_batch.x, edge_index=val_batch.edge_labels.long())
+        # g = to_networkx(val_batch)
+        # nx.draw(g)
+        # plt.savefig("visualize.jpg")
+        # exit()
         total_train_loss.append(all_loss)
         total_val_loss.append(all_val_loss)
-
+        if val_logs['accuracy']>best_acc:
+            best_acc = val_logs['accuracy']
+            fname = '/home/kevinwm99/MOT/GCN/base/models/epoch-{}-loss-{}-acc-{}.pth'.format(epoch,
+                                                                                             np.mean(np.array(all_loss)),
+                                                                                             val_logs['accuracy'])
+            torch.save(model.state_dict(), fname)
         vis.line(X=[epoch], Y=[all_loss], win='total loss', name='train ', update='append',
                  opts=dict(showlegend=True, title='total loss'))
         vis.line(X=[epoch], Y=[all_val_loss], win='total loss', name='val', update='append',
@@ -345,7 +360,7 @@ if __name__ == '__main__':
         vis.line(X=[epoch], Y=[val_logs['precision']], win='Precision', name='val ', update='append',
                  opts=dict(showlegend=True, title='Precision'))
 
-        scheduler.step()
+
     import matplotlib.pyplot as plt
     plt.plot(total_train_loss)
     plt.plot(total_val_loss)
