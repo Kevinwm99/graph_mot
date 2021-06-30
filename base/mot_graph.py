@@ -82,13 +82,14 @@ class MOTGraph(object):
 
     """
     def __init__(self, seq_det_df = None, start_frame = None, end_frame = None, ensure_end_is_in = False, step_size = None,
-                 seq_info_dict = None, dataset_params = None, inference_mode = False, cnn_model = None, max_frame_dist = None):
+                 seq_info_dict = None, dataset_params = None, inference_mode = False, cnn_model = None, max_frame_dist = None,
+                 device = None):
         self.dataset_params = dataset_params
         self.step_size = step_size
         self.seq_info_dict = seq_info_dict
         self.inference_mode = inference_mode
         self.max_frame_dist = max_frame_dist
-
+        self.device = device
         self.cnn_model = cnn_model
 
         if seq_det_df is not None:
@@ -257,9 +258,11 @@ class MOTGraph(object):
         reid_embeddings, node_feats = self._load_appearance_data()
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
                                            max_frame_dist=self.max_frame_dist,
-                                           use_cuda=self.inference_mode and self.graph_df['frame_path'].iloc[0].find('MOT17-03') == -1)
-        gt_ids = self._get_edge_ix_gt(num_obj_prev)
-        return reid_embeddings, edge_ixs, self.ids, gt_ids
+                                           use_cuda=self.inference_mode and self.graph_df['frame_path'].iloc[0].find('MOT17-03') == -1,
+                                           device=self.device)
+        # gt_ids = self._get_edge_ix_gt(num_obj_prev)
+        return reid_embeddings, edge_ixs,\
+               # self.ids, gt_ids
 
     def _get_edge_ix_gt(self, num_obj_prev):
         self.graph_df['detection_id'] = self.graph_df['detection_id'] - self.graph_df['detection_id'][0]
@@ -320,15 +323,15 @@ class MOTGraph(object):
         self.graph_obj.to(torch.device("cuda" if torch.cuda.is_available() and self.inference_mode else "cpu"))
 
     def construct_graph_obj_new(self, num_obj_prev):
-        node_feat, edge_ixs, labels, gt_ids = self.load_node_and_edge(num_obj_prev)
+        node_feat, edge_ixs = self.load_node_and_edge(num_obj_prev)
 
         self.graph_obj = Data(x=node_feat,
                          edge_attr=None,
                          edge_index=edge_ixs,
-                         y=labels,
+                         # y=labels,
                          )
         self.assign_edge_labels()
-        return self.graph_obj
+        return self.graph_obj.to(self.device)
 
 
 
