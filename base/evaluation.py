@@ -333,8 +333,8 @@ def compute_constr_satisfaction_rate(graph_obj, edges_out, undirected_edges = Tr
         div_factor = 1.  # Each edge is predicted once, hence, hence we divide by 1.
 
     # Compute incoming and outgoing flows for each node
-    flow_out = scatter_add(edges_out, sorted[0],dim_size=graph_obj.num_nodes) / div_factor
-    flow_in = scatter_add(edges_out, sorted[1], dim_size=graph_obj.num_nodes) / div_factor
+    flow_out = scatter_add(edges_out.cpu(), sorted[0],dim_size=graph_obj.num_nodes) / div_factor
+    flow_in = scatter_add(edges_out.cpu(), sorted[1], dim_size=graph_obj.num_nodes) / div_factor
 
 
     # Determine how many inequalitites are violated

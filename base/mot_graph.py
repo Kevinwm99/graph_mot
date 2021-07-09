@@ -254,7 +254,7 @@ class MOTGraph(object):
         self.graph_obj.edge_labels[active_edge_ixs] = 1
 
 
-    def load_node_and_edge(self, num_obj_prev):
+    def load_node_and_edge(self):
         reid_embeddings, node_feats = self._load_appearance_data()
         edge_ixs = get_time_valid_conn_ixs(frame_num=torch.from_numpy(self.graph_df.frame.values),
                                            max_frame_dist=self.max_frame_dist,
@@ -322,14 +322,28 @@ class MOTGraph(object):
 
         self.graph_obj.to(torch.device("cuda" if torch.cuda.is_available() and self.inference_mode else "cpu"))
 
-    def construct_graph_obj_new(self, num_obj_prev):
-        node_feat, edge_ixs = self.load_node_and_edge(num_obj_prev)
+    def get_nodes_edges(self):
+        node_feat, edge_ixs = self.load_node_and_edge()
+        return node_feat.shape[0], edge_ixs.shape[1]
 
-        self.graph_obj = Data(x=node_feat,
+    def construct_graph_obj_new(self):
+        node_feat, edge_ixs = self.load_node_and_edge()
+        reid_embeddings, node_feats = self._load_appearance_data()
+        emb_dists = []
+
+        for i in range(0, edge_ixs.shape[1], 50000):
+            emb_dists.append(F.pairwise_distance(reid_embeddings[edge_ixs[0][i:i + 50000]],
+                                                 reid_embeddings[edge_ixs[1][i:i + 50000]]).view(-1, 1))
+
+        emb_dists = torch.cat(emb_dists, dim=0)
+
+
+        self.graph_obj = Graph(x=node_feat,
                          edge_attr=None,
                          edge_index=edge_ixs,
                          # y=labels,
                          )
+        self.graph_obj.reid_emb_dists = emb_dists
         self.assign_edge_labels()
         return self.graph_obj.to(self.device)
 

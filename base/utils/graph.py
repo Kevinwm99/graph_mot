@@ -21,7 +21,7 @@ def get_time_valid_conn_ixs(frame_num, max_frame_dist, return_undirected = True,
     """
     assert isinstance(max_frame_dist, (int, np.uint)) or max_frame_dist == 'max'
 
-    # device = torch.device("cuda" if torch.cuda.is_available() and use_cuda else "cpu")
+    device = torch.device("cuda" if torch.cuda.is_available() and use_cuda else "cpu")
     frame_num = frame_num.to(device)
     assert (torch.sort(frame_num)[0] == frame_num).all(), "Detections are NOT sorted by timestamp. Graph was not created properly!"
 
