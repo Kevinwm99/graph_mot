@@ -89,7 +89,9 @@ def parse_arguments():
 
 def main():
     args = parse_arguments()
-    seqs = ['MOT17-02-GT', 'MOT17-04-GT', 'MOT17-05-GT', 'MOT17-09-GT', 'MOT17-10-GT', 'MOT17-11-GT', 'MOT17-13-GT']
+    seqs = ['MOT17-11-GT', 'MOT17-13-GT']
+    # seqs = ['MOT17-02-GT', 'MOT17-04-GT', 'MOT17-05-GT', 'MOT17-09-GT', 'MOT17-10-GT']
+        # , 'MOT17-11-GT', 'MOT17-13-GT']
     summary = compute_mot_metrics(args.gt_path, args.out_mot_files_path, seqs, print_results = True)
 
 if __name__ == "__main__":

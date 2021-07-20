@@ -453,7 +453,7 @@ if __name__ == '__main__':
     model.eval()
     # exit()
 
-    g,f = (graph_dataset._get_full_graph_from_seq_name(mot17_val[1]))
+    g,f = (graph_dataset._get_full_graph_from_seq_name(mot17_train[0]))
 
     frame_num_per_node = torch.from_numpy(g.graph_df.frame.values).to(device)
     all_frames = np.array(f)
@@ -464,10 +464,6 @@ if __name__ == '__main__':
 
     for eval_round, (start_frame, end_frame) in enumerate(zip(all_frames, all_frames[5 - 1:])):
         assert ((start_frame <= all_frames) & (all_frames <= end_frame)).sum() == 5
-        print(eval_round)
-        print(start_frame)
-        print(end_frame)
-        exit()
         # Create and evaluate a a subgraph corresponding to a batch of frames
         nodes_mask = (start_frame <= frame_num_per_node) & (frame_num_per_node <= end_frame)
         edges_mask = nodes_mask[g.graph_obj.edge_index[0]] & nodes_mask[
@@ -503,12 +499,12 @@ if __name__ == '__main__':
     seq_df = postprocess.postprocess_trajectories()
     seq_df['frame']+=1
     print(seq_df)
-    # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-02-GT.txt')
+    _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-02-GT.txt')
     # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-05-GT.txt')
     # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-09-GT.txt')
     # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-10-GT.txt')
     # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-11-GT.txt')
-    _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-13-GT.txt')
+    # _save_results_to_file(seq_df, '/home/kevinwm99/MOT/GCN/base/result/MOT17-13-GT.txt')
     exit()
 
 
